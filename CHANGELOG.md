@@ -4,6 +4,47 @@ Update log for `GPM Automation Console`.
 
 Use this file to find a stable rollback point after each feature update. Every meaningful update should include the commit hash, affected areas, verification result, and rollback command.
 
+## 2026-04-26 - Fix Packaged Updater Runtime Dependency
+
+- Commit: `3540766`
+- Type: Packaging/Fix
+- Status: Stable
+
+### Changes
+
+- Added `ms` as a direct production dependency so the packaged Electron app includes the runtime dependency required by `electron-updater`.
+- Bumped app version to `0.1.1` for a fixed public release.
+
+### Affected Files
+
+- `package.json`
+- `pnpm-lock.yaml`
+- `CHANGELOG.md`
+
+### Verification
+
+```powershell
+corepack pnpm build
+corepack pnpm dist
+```
+
+Result: passed.
+
+Packaged runtime dependency check:
+
+```text
+release\win-unpacked\resources\app.asar.unpacked\node_modules\ms\index.js
+```
+
+Result: present.
+
+### Rollback
+
+```powershell
+cd D:\Dev\Tool\GPM-Automation-Console
+git revert 3540766
+```
+
 ## 2026-04-26 - Configure GitHub Release Auto Updates
 
 - Commit: `9541e81`
