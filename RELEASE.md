@@ -56,7 +56,23 @@ Before publishing a new version:
 3. Include changed files, verification, and rollback command in `CHANGELOG.md`.
 4. Run `corepack pnpm build`.
 5. Run `corepack pnpm dist` and confirm the `.exe`, `.nsis.7z`, and `latest.yml` files exist.
-6. Publish with `corepack pnpm release`.
+6. Verify the packaged app starts from `release\win-unpacked\GPM Automation Console.exe`.
+7. Verify the updater runtime dependencies are included in `app.asar`.
+8. Publish with `corepack pnpm release`.
+
+Runtime dependency check:
+
+```powershell
+node -e "const asar=require('./node_modules/.pnpm/@electron+asar@3.4.1/node_modules/@electron/asar'); const list=asar.listPackage('release/win-unpacked/resources/app.asar'); for (const m of ['node_modules\\ms\\index.js','node_modules\\debug\\src\\node.js','node_modules\\electron-updater\\out\\main.js']) console.log(m + ': ' + list.some(x=>x.endsWith(m)))"
+```
+
+All three checks must print `true`.
+
+## Token Rules
+
+- Use `GH_TOKEN` only as a temporary environment variable.
+- Never write GitHub tokens into source files, release notes, or documentation.
+- If a token is pasted into chat or logs, revoke it immediately after use.
 
 ## Client Update Behavior
 

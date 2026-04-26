@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ArrowDown,
   ArrowUp,
+  BookOpen,
   CircleAlert,
   ClipboardList,
   Bot,
@@ -21,6 +22,7 @@ import {
   GraduationCap,
   History,
   Image,
+  Info,
   Instagram,
   Layers3,
   MessageCircle,
@@ -321,6 +323,70 @@ const navItems = [
   { id: "scripts" as const, label: "Scripts", icon: ClipboardList },
   { id: "settings" as const, label: "Settings", icon: Settings }
 ];
+const TOOL_GUIDE_SECTIONS = [
+  {
+    icon: Database,
+    title: "Profiles",
+    items: [
+      "Load all GPM Login profiles across API pages, then search, filter, create, delete, open, and close profiles.",
+      "Click selects one row, Ctrl/Cmd + click toggles rows, Shift + click selects a range.",
+      "Use Select visible for the current page or Ctrl/Cmd + A to select all filtered profiles."
+    ]
+  },
+  {
+    icon: Play,
+    title: "Automation Runtime",
+    items: [
+      "Choose one or more workflows, select profiles, then run the queue with configurable concurrency.",
+      "Each run opens the GPM profile, connects through CDP, executes workflow steps, and writes logs.",
+      "Run History stores status, duration, screenshot path, and failure reason for each profile run."
+    ]
+  },
+  {
+    icon: ClipboardList,
+    title: "Scripts",
+    items: [
+      "Create, duplicate, import, export, reset, and edit workflow presets.",
+      "Workflow steps support Navigate, Wait, Click, Type, Delay, Scroll, Screenshot, Condition, and Special Action.",
+      "Click Save in Step Inspector after editing workflow steps or settings before relying on persisted presets."
+    ]
+  },
+  {
+    icon: Settings,
+    title: "Settings",
+    items: [
+      "Set the local GPM API base URL and test the connection.",
+      "Switch between dark and light theme.",
+      "Export, import, or reset workflow data."
+    ]
+  }
+] as const;
+const VERSION_LOG_ENTRIES = [
+  {
+    icon: RefreshCw,
+    version: "0.1.2",
+    title: "Workflow, guide, and full profile loading",
+    items: [
+      "Centered Script row action icons and stabilized action button sizing.",
+      "Profiles and Scripts now use the same workflow draft state while editing.",
+      "Workflow run steps now follow the current target URL when the first Navigate step tracks the preset URL.",
+      "Added topbar Guide and Changelog buttons with section icons.",
+      "Profile loading now fetches every API page instead of stopping at the first 100 profiles."
+    ]
+  },
+  {
+    icon: CheckCircle2,
+    version: "0.1.1",
+    title: "Packaged updater runtime fix",
+    items: ["Added the missing production dependency required by electron-updater.", "Bumped the packaged release version to 0.1.1."]
+  },
+  {
+    icon: Download,
+    version: "0.1.0",
+    title: "GitHub release auto updates",
+    items: ["Added Electron Builder NSIS web packaging.", "Added GitHub Releases updater configuration and release checklist."]
+  }
+] as const;
 
 function profileId(profile: GpmProfile) {
   return profile.id ?? profile.profile_id;
@@ -343,6 +409,42 @@ function normalizeUrl(value: string) {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+function sameWorkflowUrl(left?: string, right?: string) {
+  const first = String(left || "").trim();
+  const second = String(right || "").trim();
+  if (!first || !second) return first === second;
+  return first === second || normalizeUrl(first) === normalizeUrl(second);
+}
+
+function syncFirstNavigateStep(steps: ScriptStep[], previousTargetUrl: string, nextTargetUrl: string) {
+  let synced = false;
+  return steps.map((step) => {
+    if (synced || step.kind !== "navigate") return step;
+    synced = true;
+
+    const value = String(step.value || "").trim();
+    if (value && value !== "{{targetUrl}}" && !sameWorkflowUrl(value, previousTargetUrl)) return step;
+    return { ...step, value: nextTargetUrl };
+  });
+}
+
+function workflowStepsForRun(workflow: WorkflowConfig, targetUrl: string) {
+  const defaultWorkflow = DEFAULT_WORKFLOWS.find((item) => item.id === workflow.id);
+  let synced = false;
+
+  return workflow.steps.map((step) => {
+    if (synced || step.kind !== "navigate") return step;
+    synced = true;
+
+    const value = String(step.value || "").trim();
+    if (!value || value === "{{targetUrl}}" || sameWorkflowUrl(value, workflow.targetUrl) || sameWorkflowUrl(value, defaultWorkflow?.targetUrl)) {
+      return { ...step, value: targetUrl };
+    }
+
+    return step;
+  });
 }
 
 function readStoredTheme(): Theme {
@@ -620,6 +722,8 @@ export function App() {
   const [history, setHistory] = useState<RunHistoryItem[]>([]);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showToolGuide, setShowToolGuide] = useState(false);
+  const [showVersionLog, setShowVersionLog] = useState(false);
   const [showWorkflowSettings, setShowWorkflowSettings] = useState(false);
   const [savedWorkflowConfigs, setSavedWorkflowConfigs] = useState<WorkflowConfig[]>(readStoredWorkflows);
   const [draftWorkflowConfigs, setDraftWorkflowConfigs] = useState<WorkflowConfig[]>(savedWorkflowConfigs);
@@ -667,7 +771,7 @@ export function App() {
   const virtualProfiles = pagedProfiles.slice(virtualStart, virtualEnd);
   const topSpacerHeight = virtualStart * ROW_HEIGHT;
   const bottomSpacerHeight = Math.max(0, (pagedProfiles.length - virtualEnd) * ROW_HEIGHT);
-  const workflowConfigs = view === "scripts" ? draftWorkflowConfigs : savedWorkflowConfigs;
+  const workflowConfigs = draftWorkflowConfigs;
   const activeWorkflowConfig = workflowConfigs.find((workflow) => workflow.id === activeWorkflow) || workflowConfigs[0];
   const ActiveWorkflowIcon = workflowIconFor(activeWorkflowConfig.icon);
   const workflowName = activeWorkflowConfig.name;
@@ -878,15 +982,16 @@ export function App() {
 
   function updateActiveWorkflowConfig(patch: Partial<WorkflowConfig>) {
     setDraftWorkflowConfigs((items) =>
-      items.map((workflow) =>
-        workflow.id === activeWorkflow
-          ? {
-              ...workflow,
-              ...patch,
-              concurrency: patch.concurrency === undefined ? workflow.concurrency : clampConcurrency(Number(patch.concurrency))
-            }
-          : workflow
-      )
+      items.map((workflow) => {
+        if (workflow.id !== activeWorkflow) return workflow;
+        const nextTargetUrl = patch.targetUrl ?? workflow.targetUrl;
+        return {
+          ...workflow,
+          ...patch,
+          concurrency: patch.concurrency === undefined ? workflow.concurrency : clampConcurrency(Number(patch.concurrency)),
+          steps: patch.targetUrl === undefined ? workflow.steps : syncFirstNavigateStep(workflow.steps, workflow.targetUrl, nextTargetUrl)
+        };
+      })
     );
   }
 
@@ -1293,7 +1398,7 @@ export function App() {
         closeWhenDone: workflow.closeWhenDone,
         workflowAction: workflow.action,
         inspectMode: workflow.inspectMode,
-        steps: workflow.steps
+        steps: workflowStepsForRun(workflow, url)
       });
 
       result.logs.forEach((log) => addLog(log.level, profileName(profile), log.message));
@@ -1419,6 +1524,14 @@ export function App() {
             <span className={`api-pill ${apiStatus}`}>
               {apiStatus === "connected" ? "API connected" : apiStatus === "checking" ? "Checking API" : "API offline"}
             </span>
+            <button className="ghost slim-button" onClick={() => setShowToolGuide(true)} title="Tool functions and usage guide">
+              <BookOpen size={16} />
+              Guide
+            </button>
+            <button className="ghost slim-button" onClick={() => setShowVersionLog(true)} title="Version update log">
+              <History size={16} />
+              Changelog
+            </button>
             <button className="ghost slim-button" onClick={refreshAll} disabled={busy} title="Refresh profiles">
               <RefreshCw size={16} />
               Refresh
@@ -2167,6 +2280,95 @@ export function App() {
           </div>
         )}
 
+        {showToolGuide && (
+          <div className="modal-backdrop" onMouseDown={() => setShowToolGuide(false)}>
+            <div className="modal info-modal" onMouseDown={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <h2>
+                    <Info size={17} />
+                    Tool Guide
+                  </h2>
+                  <p className="muted">Core functions and usage notes.</p>
+                </div>
+                <button className="icon-only" onClick={() => setShowToolGuide(false)} title="Close guide">
+                  <X size={18} />
+                </button>
+              </header>
+              <div className="info-modal-body">
+                {TOOL_GUIDE_SECTIONS.map((section) => {
+                  const SectionIcon = section.icon;
+                  return (
+                    <section className="info-section" key={section.title}>
+                      <div className="info-section-title">
+                        <span className="info-section-icon">
+                          <SectionIcon size={15} />
+                        </span>
+                        <h3>{section.title}</h3>
+                      </div>
+                      <ul>
+                        {section.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  );
+                })}
+              </div>
+              <footer>
+                <button className="primary" onClick={() => setShowToolGuide(false)}>
+                  Close
+                </button>
+              </footer>
+            </div>
+          </div>
+        )}
+
+        {showVersionLog && (
+          <div className="modal-backdrop" onMouseDown={() => setShowVersionLog(false)}>
+            <div className="modal info-modal" onMouseDown={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <h2>
+                    <History size={17} />
+                    Version Log
+                  </h2>
+                  <p className="muted">Recent update highlights from the changelog.</p>
+                </div>
+                <button className="icon-only" onClick={() => setShowVersionLog(false)} title="Close version log">
+                  <X size={18} />
+                </button>
+              </header>
+              <div className="info-modal-body version-log-list">
+                {VERSION_LOG_ENTRIES.map((entry) => {
+                  const EntryIcon = entry.icon;
+                  return (
+                    <section className="info-section version-log-entry" key={entry.version}>
+                      <div className="version-log-title">
+                        <span className="info-section-icon">
+                          <EntryIcon size={15} />
+                        </span>
+                        <span className="version-log-version">{entry.version}</span>
+                        <h3>{entry.title}</h3>
+                      </div>
+                      <ul>
+                        {entry.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  );
+                })}
+              </div>
+              <footer>
+                <button className="primary" onClick={() => setShowVersionLog(false)}>
+                  Close
+                </button>
+              </footer>
+            </div>
+          </div>
+        )}
+
         {showWorkflowSettings && (
           <div className="modal-backdrop" onMouseDown={() => setShowWorkflowSettings(false)}>
             <div className="modal workflow-modal" onMouseDown={(event) => event.stopPropagation()}>
@@ -2270,7 +2472,13 @@ export function App() {
                 onChange={(event) => updateActiveWorkflowConfig({ concurrency: Number(event.target.value) })}
               />
               <footer>
-                <button className="primary" onClick={() => setShowWorkflowSettings(false)}>
+                <button
+                  className="primary"
+                  onClick={() => {
+                    saveWorkflowChanges();
+                    setShowWorkflowSettings(false);
+                  }}
+                >
                   Save settings
                 </button>
               </footer>

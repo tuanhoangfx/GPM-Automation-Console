@@ -4,6 +4,60 @@ Update log for `GPM Automation Console`.
 
 Use this file to find a stable rollback point after each feature update. Every meaningful update should include the commit hash, affected areas, verification result, and rollback command.
 
+## 2026-04-26 - Workflow UI Guide And Full Profile Loading
+
+- Commit: `pending`
+- Type: Feature/Fix
+- Status: Release candidate
+
+### Changes
+
+- Added topbar `Guide` and `Changelog` buttons next to `Refresh`.
+- Added icon-led Guide and Version Log dialogs for quick in-app help.
+- Fixed Script Builder workflow action icon centering and stabilized action button sizing.
+- Kept workflow draft state consistent between Scripts and Profiles while editing.
+- Synced workflow run steps with the current target URL when the first Navigate step tracks the preset URL.
+- Changed profile loading to fetch every GPM API page instead of stopping at the first 100 profiles.
+- Added a working rule to restart Electron/app processes automatically when changes require restart.
+- Bumped app version to `0.1.2`.
+
+### Affected Files
+
+- `package.json`
+- `src/App.tsx`
+- `src/api.ts`
+- `src/styles.css`
+- `PROJECT_CONTEXT.md`
+- `README.md`
+- `RELEASE.md`
+- `CHANGELOG.md`
+
+### Verification
+
+```powershell
+corepack pnpm build
+```
+
+Result: passed.
+
+Electron smoke test:
+
+```text
+API connected
+Pagination: 1-5000 of 5119 profiles
+Ready count: 5119
+Guide icons: 4
+Changelog icons: 3
+Console errors: none
+```
+
+### Rollback
+
+```powershell
+cd D:\Dev\Tool\GPM-Automation-Console
+git revert <release_commit_hash>
+```
+
 ## 2026-04-26 - Fix Packaged Updater Runtime Dependency
 
 - Commit: `3540766`

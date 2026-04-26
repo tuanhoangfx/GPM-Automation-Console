@@ -29,7 +29,7 @@ The tool is intended for repeated operational workflows: selecting many profiles
 ## Current Features
 
 - Connect to local GPM API.
-- Load profiles and groups.
+- Load all profiles across GPM API pagination and load groups.
 - Search profiles.
 - Filter profiles by group.
 - Create profile.
@@ -41,6 +41,7 @@ The tool is intended for repeated operational workflows: selecting many profiles
   - Shift + click selects a contiguous range
 - Pagination with large page size support.
 - Virtual table rendering for large profile pages.
+- Topbar includes Guide and Changelog buttons next to Refresh.
 - Workflow Manager with configurable presets.
 - Workflow Manager is optimized as a compact single-line list with visible workflow IDs and enough space for 6 presets.
 - Workflow display IDs use the `WFxxxxx` format for search and visual identification.
@@ -137,8 +138,11 @@ Current workflow presets:
 - Keep UI text in English for consistency.
 - Keep `README.md` short and practical.
 - Use `CHANGELOG.md` for version/update history and rollback commands.
+- Use `RELEASE.md` for packaging, GitHub Releases, updater behavior, and release checklist.
+- Windows distribution uses Electron Builder `nsis-web`, not the full offline `nsis` target. The installer `.exe` should stay small and download the `.nsis.7z` payload during installation.
 - Use this `PROJECT_CONTEXT.md` for product context and future planning.
 - The user grants default permission for necessary local build/test/smoke-test commands. If the sandbox still requires approval, request it directly through the tool instead of asking again in chat.
+- If a code update only becomes visible after restarting the running app, restart the affected Electron/app process automatically after build or verification. Do this without asking again unless the restart would interrupt an active user-run automation.
 - Keep shared working rules outside the project at:
 
 ```text
@@ -154,6 +158,37 @@ cd D:\Dev\Tool\GPM-Automation-Console
 corepack pnpm dev
 corepack pnpm build
 ```
+
+## Packaging Rules
+
+Before publishing any packaged version:
+
+```powershell
+corepack pnpm build
+corepack pnpm dist
+```
+
+Package output must be in:
+
+```text
+release\nsis-web\
+```
+
+Required GitHub Release assets:
+
+```text
+GPM-Automation-Console-Setup-<version>.exe
+gpm-automation-console-<version>-x64.nsis.7z
+latest.yml
+```
+
+For every release:
+
+- Bump `version` in `package.json`.
+- Add a top entry in `CHANGELOG.md`.
+- Verify the packaged app starts from `release\win-unpacked\GPM Automation Console.exe`.
+- Verify runtime dependencies used by `electron-updater` are present in `app.asar`, especially `ms`, `debug`, and `electron-updater`.
+- Publish through GitHub Releases using `GH_TOKEN`; never commit tokens.
 
 ## Rollback Practice
 
@@ -187,4 +222,3 @@ git reset --hard <commit_hash>
 - Add profile health check before running automation.
 - Add proxy health check before automation.
 - Add per-workflow run reports and screenshot viewer.
-- Add packaged Windows installer with `electron-builder`.

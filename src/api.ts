@@ -10,12 +10,36 @@ export function setStoredBaseUrl(baseUrl: string) {
   localStorage.setItem(STORAGE_KEY, baseUrl);
 }
 
+const PROFILE_PAGE_SIZE = 1000;
+
+type PaginatedEnvelope<T> = ApiEnvelope<T[]> & {
+  pagination?: {
+    total?: number;
+    page?: number;
+    page_size?: number;
+    total_page?: number;
+  };
+};
+
 function unwrapArray<T>(response: ApiEnvelope<T[]> | ApiEnvelope<{ data?: T[]; items?: T[] }> | T[]): T[] {
   if (Array.isArray(response)) return response;
   if (Array.isArray(response?.data)) return response.data;
   if (Array.isArray(response?.data?.data)) return response.data.data;
   if (Array.isArray(response?.data?.items)) return response.data.items;
   return [];
+}
+
+function pageCount(response: PaginatedEnvelope<unknown>) {
+  const totalPage = Number(response.pagination?.total_page);
+  if (Number.isFinite(totalPage) && totalPage > 0) return Math.floor(totalPage);
+
+  const total = Number(response.pagination?.total);
+  const pageSize = Number(response.pagination?.page_size || PROFILE_PAGE_SIZE);
+  if (Number.isFinite(total) && Number.isFinite(pageSize) && total > pageSize && pageSize > 0) {
+    return Math.ceil(total / pageSize);
+  }
+
+  return 1;
 }
 
 export async function checkHealth(baseUrl: string) {
@@ -28,13 +52,29 @@ export async function getGroups(baseUrl: string) {
 }
 
 export async function getProfiles(baseUrl: string, filters: Record<string, string | number>) {
-  const response = await window.gpm.request<ApiEnvelope<GpmProfile[]>>("gpm:profiles", {
+  const { page: _page, per_page: _perPage, ...requestFilters } = filters;
+  const firstPage = await window.gpm.request<PaginatedEnvelope<GpmProfile>>("gpm:profiles", {
     baseUrl,
     page: 1,
-    per_page: 100,
-    ...filters
+    per_page: PROFILE_PAGE_SIZE,
+    ...requestFilters
   });
-  return unwrapArray<GpmProfile>(response);
+
+  const totalPages = pageCount(firstPage);
+  if (totalPages <= 1) return unwrapArray<GpmProfile>(firstPage);
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      window.gpm.request<PaginatedEnvelope<GpmProfile>>("gpm:profiles", {
+        baseUrl,
+        page: index + 2,
+        per_page: PROFILE_PAGE_SIZE,
+        ...requestFilters
+      })
+    )
+  );
+
+  return [firstPage, ...remainingPages].flatMap((response) => unwrapArray<GpmProfile>(response));
 }
 
 export async function startProfile(baseUrl: string, id: string | number) {

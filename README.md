@@ -6,10 +6,12 @@ For project decisions and next development direction, see `PROJECT_CONTEXT.md`.
 
 For update history and rollback points, see `CHANGELOG.md`.
 
+For packaging, GitHub Releases, and updater rules, see `RELEASE.md`.
+
 ## Current Features
 
 - Connects to the local GPM API.
-- Loads groups and profiles.
+- Loads groups and all profiles across GPM API pages.
 - Searches and filters profiles by group.
 - Opens, closes, and deletes selected profiles.
 - Creates new profiles.
@@ -26,6 +28,7 @@ For update history and rollback points, see `CHANGELOG.md`.
 - Workflow JSON import/export plus add, duplicate, delete, and reset controls.
 - Run History panel for completed automation runs.
 - Dark/light theme.
+- Topbar Guide and Changelog dialogs.
 
 ## Requirements
 
@@ -57,6 +60,16 @@ corepack pnpm dev
 corepack pnpm build
 ```
 
+## Package And Release
+
+The Windows installer is an Electron Builder NSIS web installer. The small setup `.exe` downloads the larger `.nsis.7z` payload from GitHub Releases during installation.
+
+```powershell
+corepack pnpm dist
+```
+
+Release publishing is documented in `RELEASE.md`.
+
 ## Basic Workflow
 
 1. Open GPM Login.
@@ -81,4 +94,3 @@ Screenshots are saved to:
 - Add workflow dry-run and per-step test execution.
 - Add CSV/TXT import for profiles and proxies.
 - Add profile/proxy health checks before running automation.
-- Package as a Windows `.exe` with `electron-builder`.
