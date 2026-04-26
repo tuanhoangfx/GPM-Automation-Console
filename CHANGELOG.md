@@ -6,7 +6,7 @@ Use this file to find a stable rollback point after each feature update. Every m
 
 ## 2026-04-26 - Workflow UI Guide And Full Profile Loading
 
-- Commit: `pending`
+- Commit: `6d0b517`
 - Type: Feature/Fix
 - Status: Release candidate
 
@@ -55,7 +55,7 @@ Console errors: none
 
 ```powershell
 cd D:\Dev\Tool\GPM-Automation-Console
-git revert <release_commit_hash>
+git revert 6d0b517
 ```
 
 ## 2026-04-26 - Fix Packaged Updater Runtime Dependency
