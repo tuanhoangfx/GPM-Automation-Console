@@ -1,0 +1,4 @@
+- **Ngày/Giờ:** 2026-04-29 22:30 (UTC+7)
+- **Tính năng:** Tự động cập nhật Version Log từ CHANGELOG
+- **Trạng thái:** Tiếp tục làm dở dang
+- **Mô tả ngắn gọn:** Cập nhật `src/App.tsx` để parse dữ liệu release từ `CHANGELOG.md` thay cho hard-code, thêm `src/raw-imports.d.ts` để hỗ trợ import `*.md?raw`, build kiểm tra thành công với `corepack pnpm build`.

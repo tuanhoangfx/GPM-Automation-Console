@@ -42,6 +42,7 @@ import {
   XCircle
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import changelogMarkdown from "../CHANGELOG.md?raw";
 import {
   checkHealth,
   closeProfile,
@@ -361,32 +362,52 @@ const TOOL_GUIDE_SECTIONS = [
     ]
   }
 ] as const;
-const VERSION_LOG_ENTRIES = [
-  {
-    icon: RefreshCw,
-    version: "0.1.2",
-    title: "Workflow, guide, and full profile loading",
-    items: [
-      "Centered Script row action icons and stabilized action button sizing.",
-      "Profiles and Scripts now use the same workflow draft state while editing.",
-      "Workflow run steps now follow the current target URL when the first Navigate step tracks the preset URL.",
-      "Added topbar Guide and Changelog buttons with section icons.",
-      "Profile loading now fetches every API page instead of stopping at the first 100 profiles."
-    ]
-  },
-  {
-    icon: CheckCircle2,
-    version: "0.1.1",
-    title: "Packaged updater runtime fix",
-    items: ["Added the missing production dependency required by electron-updater.", "Bumped the packaged release version to 0.1.1."]
-  },
-  {
-    icon: Download,
-    version: "0.1.0",
-    title: "GitHub release auto updates",
-    items: ["Added Electron Builder NSIS web packaging.", "Added GitHub Releases updater configuration and release checklist."]
+type VersionLogEntry = {
+  icon: typeof RefreshCw;
+  version: string;
+  title: string;
+  items: string[];
+};
+
+function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEntry[] {
+  const iconRotation = [RefreshCw, CheckCircle2, Download] as const;
+  const sections = markdown.split(/\r?\n(?=## )/g);
+  const parsed: VersionLogEntry[] = [];
+  for (const section of sections) {
+    const headerMatch = section.match(/^##\s+\d{4}-\d{2}-\d{2}\s+-\s+(.+)$/m);
+    if (!headerMatch) continue;
+    const releaseMatch = section.match(/^- Release:\s+.*\/tag\/v([0-9]+\.[0-9]+\.[0-9]+)\s*$/m);
+    if (!releaseMatch) continue;
+    const changesMatch = section.match(/### Changes\s*\r?\n([\s\S]*?)(?:\r?\n### |\s*$)/);
+    if (!changesMatch) continue;
+    const items = changesMatch[1]
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("- "))
+      .map((line) => line.slice(2).trim())
+      .filter(Boolean)
+      .slice(0, 5);
+    if (!items.length) continue;
+    parsed.push({
+      icon: iconRotation[parsed.length % iconRotation.length],
+      version: releaseMatch[1],
+      title: headerMatch[1].trim(),
+      items
+    });
+    if (parsed.length >= maxEntries) break;
   }
-] as const;
+  if (parsed.length) return parsed;
+  return [
+    {
+      icon: RefreshCw,
+      version: "n/a",
+      title: "No release entries found in changelog",
+      items: ["Add a changelog section with a Release tag line to populate this dialog automatically."]
+    }
+  ];
+}
+
+const VERSION_LOG_ENTRIES = parseVersionLogEntries(changelogMarkdown);
 
 function profileId(profile: GpmProfile) {
   return profile.id ?? profile.profile_id;
