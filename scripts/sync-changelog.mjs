@@ -12,6 +12,7 @@ const changelogPath = path.join(rootDir, "CHANGELOG.md");
 
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 const version = packageJson.version;
+const isCheckMode = process.argv.includes("--check");
 
 if (!version) {
   throw new Error("Missing version in package.json");
@@ -24,9 +25,23 @@ const now = new Date();
 const headingDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 const timestamp = `${headingDate} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} (UTC+7)`;
 
-const content = readFileSync(changelogPath, "utf8");
-if (content.includes(`- Commit: \`${commit}\``)) {
-  console.log(`Changelog already contains commit ${commit}`);
+const rawContent = readFileSync(changelogPath, "utf8");
+const content = rawContent.replace(/(rollback command\.)##\s/g, "$1\n\n## ");
+if (isCheckMode) {
+  if (!content.includes(`- Version: \`${version}\``)) {
+    console.error(`Changelog does not include version ${version}`);
+    process.exit(1);
+  }
+  console.log(`Changelog contains version ${version}`);
+  process.exit(0);
+}
+
+if (content.includes(`- Version: \`${version}\``)) {
+  if (content !== rawContent) {
+    writeFileSync(changelogPath, content, "utf8");
+    console.log("Normalized changelog section spacing");
+  }
+  console.log(`Changelog already contains version ${version}`);
   process.exit(0);
 }
 
@@ -37,6 +52,7 @@ if (firstEntryIndex === -1) {
 
 const header = content.slice(0, firstEntryIndex);
 const entries = content.slice(firstEntryIndex);
+const headerWithSpacing = header.endsWith("\n\n") ? header : `${header}\n`;
 
 const newEntry = `## ${headingDate} - Maintenance Sync ${version}
 
@@ -62,5 +78,5 @@ Result: passed.
 
 `;
 
-writeFileSync(changelogPath, `${header}${newEntry}${entries}`, "utf8");
+writeFileSync(changelogPath, `${headerWithSpacing}${newEntry}${entries}`, "utf8");
 console.log(`Prepended changelog entry for commit ${commit}`);

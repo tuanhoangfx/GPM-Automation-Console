@@ -26,11 +26,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Sync docs and metadata
-        run: pnpm sync:all
+      - name: Sync metadata
+        run: pnpm sync:meta
 
       - name: Ensure synced files are committed
-        run: git diff --exit-code -- CHANGELOG.md tool.manifest.json TOOL_STATUS.md
+        run: git diff --exit-code -- tool.manifest.json TOOL_STATUS.md
+
+      - name: Verify changelog includes current version
+        run: pnpm check:changelog
 
       - name: Cleanup audit
         run: pnpm audit:cleanup
