@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "code": "P0001",
+  "id": "gpm-automation-console",
+  "aliases": ["P0001", "GPM", "GPM Automation Console"],
+  "name": "GPM Automation Console",
+  "type": "Desktop",
+  "owner": "Tool",
+  "status": "Ready",
+  "summary": "Local desktop console for managing and automating GPM Login profiles through the local GPM API.",
+  "stack": ["Electron", "React", "Vite", "Playwright CDP"],
+  "commands": {
+    "dev": "corepack pnpm dev",
+    "build": "corepack pnpm build",
+    "package": "corepack pnpm dist",
+    "preview": "corepack pnpm preview"
+  },
+  "docs": {
+    "readme": "README.md",
+    "context": "PROJECT_CONTEXT.md",
+    "changelog": "CHANGELOG.md",
+    "release": "RELEASE.md"
+  },
+  "github": {
+    "repo": "tuanhoangfx/GPM-Automation-Console",
+    "branch": "main",
+    "manifestPath": "tool.manifest.json"
+  },
+  "release": {
+    "version": "0.1.2",
+    "readiness": ["build", "docs", "rollback", "package-metadata"]
+  },
+  "health": {
+    "status": "Ready",
+    "note": "Requires GPM Login local API at http://127.0.0.1:19995."
+  },
+  "nextActions": [
+    "Persist Run History to SQLite or a local JSON database.",
+    "Add workflow dry-run mode with no final submit for sensitive forms.",
+    "Add per-workflow run reports and screenshot viewer."
+  ]
+}
