@@ -12,6 +12,7 @@ const statusPath = path.join(rootDir, "TOOL_STATUS.md");
 
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 const version = packageJson.version;
+const syncedAt = new Date().toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
 
 if (!version) {
   throw new Error("Missing version in package.json");
@@ -23,7 +24,9 @@ manifestJson.release.version = version;
 writeFileSync(manifestPath, `${JSON.stringify(manifestJson, null, 2)}\n`, "utf8");
 
 const statusContent = readFileSync(statusPath, "utf8");
-const nextStatusContent = statusContent.replace(/^- Version:\s.*$/m, `- Version: ${version}`);
+const nextStatusContent = statusContent
+  .replace(/^- SyncedAt:\s.*$/m, `- SyncedAt: ${syncedAt}`)
+  .replace(/^- Version:\s.*$/m, `- Version: ${version}`);
 writeFileSync(statusPath, nextStatusContent, "utf8");
 
 console.log(`Synced metadata version to ${version}`);
