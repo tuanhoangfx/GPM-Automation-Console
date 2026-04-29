@@ -365,6 +365,7 @@ const TOOL_GUIDE_SECTIONS = [
 type VersionLogEntry = {
   icon: typeof RefreshCw;
   version: string;
+  timestamp: string;
   title: string;
   items: string[];
 };
@@ -374,10 +375,13 @@ function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEnt
   const sections = markdown.split(/\r?\n(?=## )/g);
   const parsed: VersionLogEntry[] = [];
   for (const section of sections) {
-    const headerMatch = section.match(/^##\s+\d{4}-\d{2}-\d{2}\s+-\s+(.+)$/m);
+    const headerMatch = section.match(/^##\s+(\d{4}-\d{2}-\d{2})\s+-\s+(.+)$/m);
     if (!headerMatch) continue;
+    const date = headerMatch[1];
+    const title = headerMatch[2].trim();
+    const versionMatch = section.match(/^- Version:\s*`?([0-9]+\.[0-9]+\.[0-9]+)`?\s*$/m);
+    const timestampMatch = section.match(/^- Timestamp:\s*(.+)\s*$/m);
     const releaseMatch = section.match(/^- Release:\s+.*\/tag\/v([0-9]+\.[0-9]+\.[0-9]+)\s*$/m);
-    if (!releaseMatch) continue;
     const changesMatch = section.match(/### Changes\s*\r?\n([\s\S]*?)(?:\r?\n### |\s*$)/);
     if (!changesMatch) continue;
     const items = changesMatch[1]
@@ -390,8 +394,9 @@ function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEnt
     if (!items.length) continue;
     parsed.push({
       icon: iconRotation[parsed.length % iconRotation.length],
-      version: releaseMatch[1],
-      title: headerMatch[1].trim(),
+      version: versionMatch?.[1] || releaseMatch?.[1] || date,
+      timestamp: timestampMatch?.[1]?.trim() || `${date} 00:00`,
+      title,
       items
     });
     if (parsed.length >= maxEntries) break;
@@ -401,8 +406,9 @@ function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEnt
     {
       icon: RefreshCw,
       version: "n/a",
-      title: "No release entries found in changelog",
-      items: ["Add a changelog section with a Release tag line to populate this dialog automatically."]
+      timestamp: "n/a",
+      title: "No changelog entries found",
+      items: ["Add a changelog section with a '### Changes' block and bullet items to populate this dialog automatically."]
     }
   ];
 }
@@ -2482,12 +2488,13 @@ export function App() {
                 {VERSION_LOG_ENTRIES.map((entry) => {
                   const EntryIcon = entry.icon;
                   return (
-                    <section className="info-section version-log-entry" key={entry.version}>
+                    <section className="info-section version-log-entry" key={`${entry.version}-${entry.title}`}>
                       <div className="version-log-title">
                         <span className="info-section-icon">
                           <EntryIcon size={15} />
                         </span>
                         <span className="version-log-version">{entry.version}</span>
+                        <span className="version-log-timestamp">{entry.timestamp}</span>
                         <h3>{entry.title}</h3>
                       </div>
                       <ul>

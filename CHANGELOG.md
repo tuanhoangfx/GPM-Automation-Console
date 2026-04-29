@@ -4,6 +4,29 @@ Update log for `GPM Automation Console`.
 
 Use this file to find a stable rollback point after each feature update. Every meaningful update should include the commit hash, affected areas, verification result, and rollback command.
 
+## 2026-04-29 - Auto Sync Version Log And Bump 0.1.3
+
+- Version: `0.1.3`
+- Timestamp: 2026-04-29 22:36 (UTC+7)
+- Commit: pending
+- Type: Feature/UI
+- Status: Verified
+
+### Changes
+
+- Bumped app version from `0.1.2` to `0.1.3`.
+- Updated Version Log parsing to read every newest changelog entry with a `### Changes` section, not only entries that include a Release URL.
+- Added support for optional `- Version: x.y.z` metadata so the Version badge can map exactly to release/app version when available.
+- Kept fallback behavior safe by showing the changelog date as version text when explicit version metadata is not provided.
+
+### Verification
+
+```powershell
+corepack pnpm build
+```
+
+Result: passed.
+
 ## 2026-04-28 - Project Manifest Identity
 
 - Commit: pending
