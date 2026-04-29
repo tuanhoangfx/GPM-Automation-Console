@@ -488,7 +488,7 @@ select:focus {
 
 .table-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
   background: var(--surface);
@@ -497,9 +497,16 @@ select:focus {
   box-shadow: 0 10px 24px var(--shadow);
 }
 
+.table-head-wrap {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .table-wrap {
-  height: 100%;
+  min-height: 0;
   overflow: auto;
+  background: var(--surface);
+  scrollbar-gutter: stable;
   scrollbar-color: color-mix(in srgb, var(--muted) 62%, transparent) transparent;
   scrollbar-width: thin;
 }
@@ -527,16 +534,11 @@ select:focus {
   border-radius: 999px;
 }
 
-table {
+.queue-table {
   width: 100%;
   min-width: 880px;
+  table-layout: fixed;
   border-collapse: collapse;
-}
-
-thead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
 
 th,
@@ -555,6 +557,72 @@ th {
   background: var(--surface-2);
   font-size: 12px;
   font-weight: 800;
+}
+
+.profile-table th:first-child,
+.profile-table td:first-child {
+  width: 24%;
+}
+
+.profile-table th:nth-child(2),
+.profile-table td:nth-child(2) {
+  width: 15%;
+}
+
+.profile-table th:nth-child(3),
+.profile-table td:nth-child(3) {
+  width: 13%;
+}
+
+.profile-table th:nth-child(4),
+.profile-table td:nth-child(4) {
+  width: 24%;
+}
+
+.profile-table th:nth-child(6),
+.profile-table td:nth-child(6) {
+  width: 92px;
+}
+
+.profile-table th.action-col,
+.profile-table td.row-actions {
+  padding-right: 6px;
+  padding-left: 6px;
+  text-align: center;
+}
+
+.profile-table th {
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-table-head th {
+  height: 36px;
+}
+
+.profile-table td.row-actions {
+  display: table-cell;
+  white-space: nowrap;
+}
+
+.profile-table td.row-actions button {
+  margin-left: 0;
+  vertical-align: middle;
+}
+
+:root .shell .profile-table td.row-actions .table-action-btn {
+  display: inline-grid;
+}
+
+.profile-table td.row-actions button + button {
+  margin-left: 6px;
+}
+
+:root .shell .profile-table td.row-actions.queue-actions {
+  display: table-cell;
+  justify-content: normal;
+  padding-right: 6px;
+  padding-left: 6px;
+  text-align: center;
 }
 
 .dense-table td {
@@ -813,19 +881,6 @@ td strong {
 
 .row-select-table tbody tr.selected-row td {
   border-bottom-color: color-mix(in srgb, var(--selected) 52%, var(--border));
-}
-
-.virtual-spacer,
-.virtual-spacer:hover {
-  background: transparent;
-  outline: 0;
-  box-shadow: none;
-}
-
-.virtual-spacer td {
-  height: auto;
-  padding: 0;
-  border: 0;
 }
 
 .runtime-grid {

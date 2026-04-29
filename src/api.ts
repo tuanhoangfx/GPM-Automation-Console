@@ -11,6 +11,7 @@ export function setStoredBaseUrl(baseUrl: string) {
 }
 
 const PROFILE_PAGE_SIZE = 1000;
+const PROFILE_FETCH_CONCURRENCY = 4;
 
 type PaginatedEnvelope<T> = ApiEnvelope<T[]> & {
   pagination?: {
@@ -63,16 +64,22 @@ export async function getProfiles(baseUrl: string, filters: Record<string, strin
   const totalPages = pageCount(firstPage);
   if (totalPages <= 1) return unwrapArray<GpmProfile>(firstPage);
 
-  const remainingPages = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, index) =>
-      window.gpm.request<PaginatedEnvelope<GpmProfile>>("gpm:profiles", {
-        baseUrl,
-        page: index + 2,
-        per_page: PROFILE_PAGE_SIZE,
-        ...requestFilters
-      })
-    )
-  );
+  const remainingPages: PaginatedEnvelope<GpmProfile>[] = [];
+  const pages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
+  for (let offset = 0; offset < pages.length; offset += PROFILE_FETCH_CONCURRENCY) {
+    const batch = pages.slice(offset, offset + PROFILE_FETCH_CONCURRENCY);
+    const responses = await Promise.all(
+      batch.map((page) =>
+        window.gpm.request<PaginatedEnvelope<GpmProfile>>("gpm:profiles", {
+          baseUrl,
+          page,
+          per_page: PROFILE_PAGE_SIZE,
+          ...requestFilters
+        })
+      )
+    );
+    remainingPages.push(...responses);
+  }
 
   return [firstPage, ...remainingPages].flatMap((response) => unwrapArray<GpmProfile>(response));
 }
@@ -87,10 +94,6 @@ export async function closeProfile(baseUrl: string, id: string | number) {
 
 export async function createProfile(baseUrl: string, profile: Record<string, unknown>) {
   return window.gpm.request<ApiEnvelope<GpmProfile>>("gpm:createProfile", { baseUrl, profile });
-}
-
-export async function updateProfile(baseUrl: string, id: string | number, patch: Record<string, unknown>) {
-  return window.gpm.request<ApiEnvelope<GpmProfile>>("gpm:updateProfile", { baseUrl, id, patch });
 }
 
 export async function deleteProfile(baseUrl: string, id: string | number) {

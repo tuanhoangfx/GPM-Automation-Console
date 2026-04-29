@@ -41,7 +41,7 @@ import {
   X,
   XCircle
 } from "lucide-react";
-import { type MouseEvent, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import changelogMarkdown from "../CHANGELOG.md?raw";
 import {
   checkHealth,
@@ -55,6 +55,9 @@ import {
   setStoredBaseUrl,
   startProfile
 } from "./api";
+import { useProfiles } from "./hooks/useProfiles";
+import { useWorkflows } from "./hooks/useWorkflows";
+import { profileId, profileName } from "./lib/profiles";
 import type { GpmGroup, GpmProfile, ProfileRow, RunLog, ScriptStep, ScriptStepKind } from "./types";
 
 type View = "profiles" | "scripts" | "settings";
@@ -100,8 +103,6 @@ const THEME_KEY = "gpm-console-theme";
 const WORKFLOWS_KEY = "gpm-console-workflows";
 const ACTIVE_WORKFLOW_KEY = "gpm-console-active-workflow";
 const PAGE_SIZE_OPTIONS = [100, 500, 1000, 5000];
-const ROW_HEIGHT = 50;
-const VIRTUAL_OVERSCAN = 10;
 const SCRIPT_STEP_KINDS: ScriptStepKind[] = ["navigate", "wait", "click", "type", "delay", "scroll", "screenshot", "condition", "action"];
 
 function createStep(kind: ScriptStepKind, patch: Partial<ScriptStep> = {}): ScriptStep {
@@ -414,14 +415,6 @@ function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEnt
 }
 
 const VERSION_LOG_ENTRIES = parseVersionLogEntries(changelogMarkdown);
-
-function profileId(profile: GpmProfile) {
-  return profile.id ?? profile.profile_id;
-}
-
-function profileName(profile: GpmProfile) {
-  return profile.profile_name || profile.name || `Profile ${profileId(profile)}`;
-}
 
 function groupName(group: GpmGroup) {
   return group.group_name || group.name || `Group ${group.id}`;
@@ -774,8 +767,6 @@ export function App() {
   const [groups, setGroups] = useState<GpmGroup[]>([]);
   const [selected, setSelected] = useState<Set<string | number>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
-  const [search, setSearch] = useState("");
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [newProfileGroupId, setNewProfileGroupId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -791,107 +782,62 @@ export function App() {
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowId>(readStoredActiveWorkflow);
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<WorkflowId[]>([readStoredActiveWorkflow()]);
   const [savePulse, setSavePulse] = useState(false);
-  const [workflowSearch, setWorkflowSearch] = useState("");
-  const [workflowGroupFilters, setWorkflowGroupFilters] = useState<string[]>([]);
-  const [workflowPlatformFilters, setWorkflowPlatformFilters] = useState<string[]>([]);
   const [selectedScriptStepId, setSelectedScriptStepId] = useState<string>("");
   const [lastSelectedWorkflowIndex, setLastSelectedWorkflowIndex] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5000);
-  const [tableScrollTop, setTableScrollTop] = useState(0);
   const [automationRunning, setAutomationRunning] = useState(false);
   const [pinnedHistoryId, setPinnedHistoryId] = useState<string | null>(null);
   const [pendingWorkflowImportId, setPendingWorkflowImportId] = useState<string>("");
   const [workflowUndoStack, setWorkflowUndoStack] = useState<WorkflowConfig[][]>([]);
   const [workflowRedoStack, setWorkflowRedoStack] = useState<WorkflowConfig[][]>([]);
-  const tableWrapRef = useRef<HTMLDivElement>(null);
   const workflowImportRef = useRef<HTMLInputElement>(null);
   const singleWorkflowImportRef = useRef<HTMLInputElement>(null);
 
-  const selectedProfiles = useMemo(
-    () => profiles.filter((profile) => selected.has(profileId(profile))),
-    [profiles, selected]
-  );
-
-  const filteredProfiles = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return profiles.filter((profile) => {
-      const matchesSearch = !term || profileName(profile).toLowerCase().includes(term);
-      const matchesGroup = selectedGroupIds.length === 0 || selectedGroupIds.includes(String(profile.group_id));
-      return matchesSearch && matchesGroup;
-    });
-  }, [profiles, search, selectedGroupIds]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredProfiles.length / pageSize));
-  const pageStart = (currentPage - 1) * pageSize;
-  const pageEnd = Math.min(pageStart + pageSize, filteredProfiles.length);
-  const pagedProfiles = filteredProfiles.slice(pageStart, pageEnd);
-  const virtualStart = Math.max(0, Math.floor(tableScrollTop / ROW_HEIGHT) - VIRTUAL_OVERSCAN);
-  const visibleRowCapacity = Math.ceil((tableWrapRef.current?.clientHeight || 640) / ROW_HEIGHT) + VIRTUAL_OVERSCAN * 2;
-  const virtualEnd = Math.min(pagedProfiles.length, virtualStart + visibleRowCapacity);
-  const virtualProfiles = pagedProfiles.slice(virtualStart, virtualEnd);
-  const topSpacerHeight = virtualStart * ROW_HEIGHT;
-  const bottomSpacerHeight = Math.max(0, (pagedProfiles.length - virtualEnd) * ROW_HEIGHT);
+  const {
+    search,
+    setSearch,
+    selectedGroupIds,
+    setSelectedGroupIds,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    selectedProfiles,
+    filteredProfiles,
+    totalPages,
+    pageStart,
+    pageEnd,
+    pagedProfiles,
+    profileCounts
+  } = useProfiles(profiles, selected);
   const workflowConfigs = draftWorkflowConfigs;
   const activeWorkflowConfig = workflowConfigs.find((workflow) => workflow.id === activeWorkflow) || workflowConfigs[0];
   const ActiveWorkflowIcon = workflowIconFor(activeWorkflowConfig.icon);
   const workflowName = activeWorkflowConfig.name;
-  const selectedWorkflowConfigs = useMemo(
-    () => selectedWorkflowIds.map((id) => workflowConfigs.find((workflow) => workflow.id === id)).filter(Boolean) as WorkflowConfig[],
-    [selectedWorkflowIds, workflowConfigs]
-  );
+  const {
+    workflowSearch,
+    setWorkflowSearch,
+    workflowGroupFilters,
+    setWorkflowGroupFilters,
+    workflowPlatformFilters,
+    setWorkflowPlatformFilters,
+    selectedWorkflowConfigs,
+    workflowGroupOptions,
+    workflowPlatformOptions,
+    filteredWorkflows,
+    selectedWorkflowCount,
+    visibleWorkflowSteps
+  } = useWorkflows(workflowConfigs, selectedWorkflowIds, workflowDisplayId, workflowDisplayPlatform);
   const runWorkflowConfigs = selectedWorkflowConfigs.length > 0 ? selectedWorkflowConfigs : [activeWorkflowConfig];
   const runWorkflowLabel = runWorkflowConfigs.length === 1 ? runWorkflowConfigs[0].name : `${runWorkflowConfigs.length} workflows`;
   const selectedScriptStep = activeWorkflowConfig.steps.find((step) => step.id === selectedScriptStepId) || activeWorkflowConfig.steps[0];
-  const workflowGroups = useMemo(() => Array.from(new Set(workflowConfigs.map((workflow) => workflow.group))), [workflowConfigs]);
-  const workflowPlatforms = useMemo(() => Array.from(new Set(workflowConfigs.map(workflowDisplayPlatform))), [workflowConfigs]);
-  const workflowGroupOptions = useMemo(
-    () => workflowGroups.map((group) => ({ value: group, label: group })),
-    [workflowGroups]
-  );
-  const workflowPlatformOptions = useMemo(
-    () => workflowPlatforms.map((platform) => ({ value: platform, label: platform })),
-    [workflowPlatforms]
-  );
   const profileGroupOptions = useMemo(
     () => groups.map((group) => ({ value: String(group.id), label: groupName(group) })),
     [groups]
   );
-  const filteredWorkflows = useMemo(() => {
-    const term = workflowSearch.trim().toLowerCase();
-    return workflowConfigs.filter((workflow) => {
-      const displayId = workflowDisplayId(workflow.id).toLowerCase();
-      const displayPlatform = workflowDisplayPlatform(workflow);
-      const matchesTerm =
-        !term ||
-        displayId.includes(term) ||
-        workflow.id.toLowerCase().includes(term) ||
-        workflow.name.toLowerCase().includes(term) ||
-        workflow.description.toLowerCase().includes(term) ||
-        displayPlatform.toLowerCase().includes(term) ||
-        workflow.group.toLowerCase().includes(term);
-      const matchesGroup = workflowGroupFilters.length === 0 || workflowGroupFilters.includes(workflow.group);
-      const matchesPlatform = workflowPlatformFilters.length === 0 || workflowPlatformFilters.includes(displayPlatform);
-      return matchesTerm && matchesGroup && matchesPlatform;
-    });
-  }, [workflowConfigs, workflowGroupFilters, workflowPlatformFilters, workflowSearch]);
-  const selectedWorkflowCount = selectedWorkflowIds.length;
-  const visibleWorkflowSteps = filteredWorkflows.reduce((count, workflow) => count + workflow.steps.length, 0);
   useEffect(() => {
     setCurrentPage(1);
     setLastSelectedIndex(null);
-    setTableScrollTop(0);
-    if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
   }, [pageSize, search, selectedGroupIds]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
-
-  useEffect(() => {
-    setTableScrollTop(0);
-    if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
-  }, [currentPage]);
 
   useEffect(() => {
     localStorage.setItem(ACTIVE_WORKFLOW_KEY, activeWorkflow);
@@ -945,13 +891,19 @@ export function App() {
       ]);
       setApiStatus(health.ok === false ? "offline" : "connected");
       setGroups(nextGroups);
-      setProfiles((current) =>
-        nextProfiles.map((profile) => ({
-          ...profile,
-          status: current.find((item) => profileId(item) === profileId(profile))?.status || "closed",
-          lastMessage: current.find((item) => profileId(item) === profileId(profile))?.lastMessage
-        }))
-      );
+      setProfiles((current) => {
+        const currentMap = new Map(
+          current.map((item) => [profileId(item), { status: item.status, lastMessage: item.lastMessage }])
+        );
+        return nextProfiles.map((profile) => {
+          const currentState = currentMap.get(profileId(profile));
+          return {
+            ...profile,
+            status: currentState?.status || "closed",
+            lastMessage: currentState?.lastMessage
+          };
+        });
+      });
     } catch (refreshError) {
       setApiStatus("offline");
       setError(refreshError instanceof Error ? refreshError.message : "Unable to load GPM data.");
@@ -1037,10 +989,6 @@ export function App() {
   function clearSelection() {
     setSelected(new Set());
     setLastSelectedIndex(null);
-  }
-
-  function handleTableScroll(event: UIEvent<HTMLDivElement>) {
-    setTableScrollTop(event.currentTarget.scrollTop);
   }
 
   function updateActiveWorkflowConfig(patch: Partial<WorkflowConfig>) {
@@ -1546,10 +1494,7 @@ export function App() {
     refreshAll();
   }
 
-  const readyCount = profiles.filter((profile) => profile.status === "closed").length;
-  const runningCount = profiles.filter((profile) => profile.status === "running" || profile.status === "opening").length;
-  const failedCount = profiles.filter((profile) => profile.status === "failed").length;
-  const totalProfiles = profiles.length;
+  const totalProfiles = profileCounts.total;
   const historyCounts = useMemo(
     () => ({
       total: history.length,
@@ -1650,7 +1595,7 @@ export function App() {
                       </span>
                       <div className="metric-content">
                         <span className="metric-label">Ready</span>
-                        <strong className="metric-value">{readyCount}</strong>
+                        <strong className="metric-value">{profileCounts.ready}</strong>
                       </div>
                     </div>
                     <div className="metric-card">
@@ -1659,7 +1604,7 @@ export function App() {
                       </span>
                       <div className="metric-content">
                         <span className="metric-label">Running</span>
-                        <strong className="metric-value">{runningCount}</strong>
+                        <strong className="metric-value">{profileCounts.running}</strong>
                       </div>
                     </div>
                     <div className="metric-card">
@@ -1668,7 +1613,7 @@ export function App() {
                       </span>
                       <div className="metric-content">
                         <span className="metric-label">Failed</span>
-                        <strong className="metric-value">{failedCount}</strong>
+                        <strong className="metric-value">{profileCounts.failed}</strong>
                       </div>
                     </div>
                   </>
@@ -1722,8 +1667,8 @@ export function App() {
                 }
               />
               <div className="job-list table-panel native-table row-select-table">
-                <div className="table-wrap table-scroll" ref={tableWrapRef} onScroll={handleTableScroll}>
-                  <table className="queue-table">
+                <div className="table-head-wrap">
+                  <table className="queue-table profile-table profile-table-head" aria-hidden="true">
                     <thead>
                       <tr>
                         <th>
@@ -1764,17 +1709,16 @@ export function App() {
                         </th>
                       </tr>
                     </thead>
+                  </table>
+                </div>
+                <div className="table-wrap table-scroll">
+                  <table className="queue-table profile-table">
                     <tbody>
-                      {topSpacerHeight > 0 && (
-                        <tr className="virtual-spacer" aria-hidden="true">
-                          <td colSpan={6} style={{ height: topSpacerHeight }} />
-                        </tr>
-                      )}
-                      {virtualProfiles.map((profile, index) => (
+                      {pagedProfiles.map((profile, index) => (
                         <tr
                           key={profileId(profile)}
                           className={selected.has(profileId(profile)) ? "queue-row selected-row active" : "queue-row"}
-                          onClick={(event) => selectRow(profile, pageStart + virtualStart + index, event)}
+                          onClick={(event) => selectRow(profile, pageStart + index, event)}
                         >
                           <td>
                             <strong className="queue-channel-name">{profileName(profile)}</strong>
@@ -1809,11 +1753,6 @@ export function App() {
                           </td>
                         </tr>
                       ))}
-                      {bottomSpacerHeight > 0 && (
-                        <tr className="virtual-spacer" aria-hidden="true">
-                          <td colSpan={6} style={{ height: bottomSpacerHeight }} />
-                        </tr>
-                      )}
                       {filteredProfiles.length === 0 && (
                         <tr>
                           <td colSpan={6} className="empty">

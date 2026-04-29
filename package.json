@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "tsc --noEmit && vite build",
+    "audit:cleanup": "node scripts/audit-cleanup.mjs",
+    "sync:meta": "node scripts/sync-metadata-version.mjs",
     "pack": "corepack pnpm build && electron-builder --dir",
     "dist": "corepack pnpm build && electron-builder --win nsis-web --publish never",
     "release": "corepack pnpm build && electron-builder --win nsis-web --publish always",

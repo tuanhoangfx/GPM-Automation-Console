@@ -6,7 +6,7 @@
 - SyncedAt: 2026-04-29 11:47:35 UTC
 - ToolName: GPM Automation Console
 - ToolPath: E:\Dev\Tool\GPM-Automation-Console
-- Version: 0.1.2
+- Version: 0.1.3
 - GitHubRepo: tuanhoangfx/GPM-Automation-Console
 
 ## Scripts

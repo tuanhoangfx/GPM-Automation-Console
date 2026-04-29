@@ -65,11 +65,6 @@ function bindGpmApi() {
     return requestJson(buildUrl(baseUrl, "/api/v3/profiles", params));
   });
 
-  ipcMain.handle("gpm:profile", async (_event, payload = {}) => {
-    if (!payload.id) throw new Error("Missing profile id");
-    return requestJson(buildUrl(payload.baseUrl, `/api/v3/profile/${encodeURIComponent(payload.id)}`));
-  });
-
   ipcMain.handle("gpm:startProfile", async (_event, payload = {}) => {
     if (!payload.id) throw new Error("Missing profile id");
     const { baseUrl, id, ...params } = payload;
