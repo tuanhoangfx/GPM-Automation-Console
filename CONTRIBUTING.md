@@ -16,7 +16,7 @@ Run before opening a PR:
 corepack pnpm lint
 corepack pnpm test:unit
 corepack pnpm build
-corepack pnpm check:changelog
+corepack pnpm check:releaselog
 corepack pnpm audit:cleanup
 ```
 
@@ -28,7 +28,7 @@ When preparing a release entry:
 corepack pnpm sync:all
 ```
 
-This will bump patch version, sync metadata files, and ensure changelog contains the active version.
+This will bump patch version, sync metadata files, and ensure `RELEASE.md` contains the active version.
 
 ## Conventions
 

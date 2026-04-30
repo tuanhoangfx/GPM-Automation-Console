@@ -868,7 +868,7 @@ td strong {
 }
 
 .row-select-table tbody tr {
-  cursor: cell;
+  cursor: pointer;
   user-select: none;
 }
 

@@ -28,7 +28,6 @@
   "docs": {
     "readme": "README.md",
     "context": "PROJECT_CONTEXT.md",
-    "changelog": "CHANGELOG.md",
     "release": "RELEASE.md",
     "architecture": "ARCHITECTURE.md",
     "contributing": "CONTRIBUTING.md"
@@ -39,7 +38,7 @@
     "manifestPath": "tool.manifest.json"
   },
   "release": {
-    "version": "0.1.5",
+    "version": "0.2.1",
     "readiness": [
       "build",
       "docs",

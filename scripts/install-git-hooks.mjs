@@ -21,7 +21,7 @@ if (!existsSync(hooksSrcDir)) {
 
 mkdirSync(hooksDestDir, { recursive: true });
 
-for (const hookName of ["pre-commit", "post-commit"]) {
+for (const hookName of ["pre-commit", "post-commit", "pre-push"]) {
   const src = path.join(hooksSrcDir, hookName);
   const dest = path.join(hooksDestDir, hookName);
   if (!existsSync(src)) continue;

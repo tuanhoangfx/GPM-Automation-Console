@@ -1,7 +1,12 @@
 #!/bin/sh
 set -e
 
-echo "[hook] release stamp"
-pnpm release:stamp
+if [ "$GPM_AUTO_COMMIT_RUNNING" = "1" ]; then
+  echo "[hook] pre-commit skipped (auto-commit guard)"
+  exit 0
+fi
 
-git add package.json tool.manifest.json CHANGELOG.md TOOL_STATUS.md
+echo "[hook] release stamp"
+pnpm release:code-only-stamp
+
+git add package.json tool.manifest.json RELEASE.md

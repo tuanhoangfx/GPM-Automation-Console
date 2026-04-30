@@ -16,7 +16,7 @@ if (!version) {
   throw new Error("Missing version in package.json");
 }
 
-let exists = false;
+let exists;
 try {
   execSync(`git rev-parse -q --verify refs/tags/${tagName}`, { cwd: rootDir, stdio: "ignore" });
   exists = true;

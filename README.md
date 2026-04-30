@@ -4,7 +4,7 @@ Local desktop app for managing and automating GPM Login profiles through the loc
 
 For project decisions and next development direction, see `PROJECT_CONTEXT.md`.
 
-For update history and rollback points, see `CHANGELOG.md`.
+For update history and rollback points, see `RELEASE.md`.
 
 For packaging, GitHub Releases, and updater rules, see `RELEASE.md`.
 

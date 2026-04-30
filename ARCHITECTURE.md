@@ -27,4 +27,4 @@
 
 - Frontend build: Vite (`dist/`)
 - Desktop packaging: Electron Builder (`release/`)
-- CI quality gates: lint, tests, metadata/changelog checks, build
+- CI quality gates: lint, tests, metadata/release-log checks, build

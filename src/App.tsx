@@ -42,7 +42,7 @@ import {
   XCircle
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import changelogMarkdown from "../CHANGELOG.md?raw";
+import releaseLogMarkdown from "../RELEASE.md?raw";
 import {
   checkHealth,
   closeProfile,
@@ -371,7 +371,7 @@ type VersionLogEntry = {
   items: string[];
 };
 
-function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEntry[] {
+function parseVersionLogEntries(markdown: string, maxEntries = 20): VersionLogEntry[] {
   const iconRotation = [RefreshCw, CheckCircle2, Download] as const;
   const sections = markdown.split(/\r?\n(?=## )/g);
   const parsed: VersionLogEntry[] = [];
@@ -408,13 +408,13 @@ function parseVersionLogEntries(markdown: string, maxEntries = 3): VersionLogEnt
       icon: RefreshCw,
       version: "n/a",
       timestamp: "n/a",
-      title: "No changelog entries found",
-      items: ["Add a changelog section with a '### Changes' block and bullet items to populate this dialog automatically."]
+      title: "No release entries found",
+      items: ["Add a release entry section with a '### Changes' block and bullet items to populate this dialog automatically."]
     }
   ];
 }
 
-const VERSION_LOG_ENTRIES = parseVersionLogEntries(changelogMarkdown);
+const VERSION_LOG_ENTRIES = parseVersionLogEntries(releaseLogMarkdown);
 
 function groupName(group: GpmGroup) {
   return group.group_name || group.name || `Group ${group.id}`;
@@ -1537,9 +1537,9 @@ export function App() {
               <BookOpen size={16} />
               Guide
             </button>
-            <button className="ghost slim-button" onClick={() => setShowVersionLog(true)} title="Version update log">
+            <button className="ghost slim-button" onClick={() => setShowVersionLog(true)} title="Release update log">
               <History size={16} />
-              Changelog
+              Release Log
             </button>
             <button className="ghost slim-button" onClick={refreshAll} disabled={busy} title="Refresh profiles">
               <RefreshCw size={16} />
@@ -2415,9 +2415,9 @@ export function App() {
                 <div>
                   <h2>
                     <History size={17} />
-                    Version Log
+                    Release Log
                   </h2>
-                  <p className="muted">Recent update highlights from the changelog.</p>
+                  <p className="muted">Recent update highlights from the release log.</p>
                 </div>
                 <button className="icon-only" onClick={() => setShowVersionLog(false)} title="Close version log">
                   <X size={18} />

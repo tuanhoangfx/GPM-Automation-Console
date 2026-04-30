@@ -6,12 +6,21 @@ export function useProfiles(profiles: ProfileRow[], selected: Set<string | numbe
   const [search, setSearch] = useState("");
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(500);
+  const [pageSize, setPageSize] = useState(100);
 
-  const selectedProfiles = useMemo(
-    () => profiles.filter((profile) => selected.has(profileId(profile))),
-    [profiles, selected]
+  const profileById = useMemo(
+    () => new Map(profiles.map((profile) => [profileId(profile), profile] as const)),
+    [profiles]
   );
+
+  const selectedProfiles = useMemo(() => {
+    const items: ProfileRow[] = [];
+    selected.forEach((id) => {
+      const profile = profileById.get(id);
+      if (profile) items.push(profile);
+    });
+    return items;
+  }, [profileById, selected]);
 
   const filteredProfiles = useMemo(() => {
     const term = search.trim().toLowerCase();

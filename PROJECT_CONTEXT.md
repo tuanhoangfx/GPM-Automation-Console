@@ -2,7 +2,7 @@
 
 Living context file for `GPM Automation Console`.
 
-This file should capture decisions, product direction, implementation assumptions, and next development ideas. Keep `README.md` focused on setup and usage. Keep `CHANGELOG.md` focused on update history and rollback points.
+This file should capture decisions, product direction, implementation assumptions, and next development ideas. Keep `README.md` focused on setup and usage. Keep `RELEASE.md` as the single source of truth for update history and rollback points.
 
 ## Project Identity
 
@@ -144,7 +144,7 @@ Current workflow presets:
 - Keep the Native UI as the main direction.
 - Keep UI text in English for consistency.
 - Keep `README.md` short and practical.
-- Use `CHANGELOG.md` for version/update history and rollback commands.
+- Use `RELEASE.md` as the single source of truth for version/update history and rollback commands.
 - Use `RELEASE.md` for packaging, GitHub Releases, updater behavior, and release checklist.
 - Windows distribution uses Electron Builder `nsis-web`, not the full offline `nsis` target. The installer `.exe` should stay small and download the `.nsis.7z` payload during installation.
 - Use this `PROJECT_CONTEXT.md` for product context and future planning.
@@ -192,7 +192,7 @@ latest.yml
 For every release:
 
 - Bump `version` in `package.json`.
-- Add a top entry in `CHANGELOG.md`.
+- Add a top entry in `RELEASE.md`.
 - Verify the packaged app starts from `release\win-unpacked\GPM Automation Console.exe`.
 - Verify runtime dependencies used by `electron-updater` are present in `app.asar`, especially `ms`, `debug`, and `electron-updater`.
 - Publish through GitHub Releases using `GH_TOKEN`; never commit tokens.
@@ -212,7 +212,7 @@ git add .
 git commit -m "Clear update message"
 ```
 
-Record the commit hash in `CHANGELOG.md`.
+Record the commit hash in `RELEASE.md`.
 
 To rollback:
 
