@@ -1,11 +1,6 @@
 #!/bin/sh
 set -e
 
-if [ "$GPM_AUTO_COMMIT_RUNNING" = "1" ]; then
-  echo "[hook] pre-commit skipped (auto-commit guard)"
-  exit 0
-fi
-
 echo "[hook] release stamp"
 pnpm release:code-only-stamp
 
