@@ -38,12 +38,49 @@ function unique(values) {
 function inferReleaseType(files) {
   const normalized = files.map((file) => file.replace(/\\/g, "/"));
   if (normalized.some((file) => file.startsWith("src/") || file.startsWith("electron/"))) {
-    return { title: "Code Update", type: "Feature/Fix" };
+    return { type: "Feature/Fix" };
   }
   if (normalized.some((file) => file.startsWith("scripts/") || file.startsWith(".github/workflows/") || file.startsWith(".githooks/"))) {
-    return { title: "Automation Update", type: "Maintenance/Automation" };
+    return { type: "Maintenance/Automation" };
   }
-  return { title: "Project Update", type: "Maintenance/Docs" };
+  return { type: "Maintenance/Docs" };
+}
+
+function inferReleaseHeadline(files) {
+  const normalized = files.map((file) => file.replace(/\\/g, "/"));
+
+  if (normalized.includes("src/App.tsx")) {
+    const appDiff = readStagedDiff("src/App.tsx");
+    if (/parseVersionLogEntries|candidate|version/i.test(appDiff) && /release/i.test(appDiff)) {
+      return "Release Log Parsing Logic Update";
+    }
+  }
+  if (normalized.some((file) => file.startsWith("src/features/workflows/"))) {
+    return "Workflow Execution Logic Update";
+  }
+  if (normalized.some((file) => file.startsWith("src/features/profiles/"))) {
+    return "Profile Handling Logic Update";
+  }
+  if (normalized.some((file) => file.startsWith("electron/"))) {
+    return "Desktop Runtime Update";
+  }
+  if (normalized.some((file) => file.startsWith("src/"))) {
+    return "Application Logic Update";
+  }
+  if (normalized.some((file) => file.startsWith(".github/workflows/"))) {
+    return "CI Pipeline Update";
+  }
+  if (normalized.some((file) => file.startsWith(".githooks/") || file.startsWith("scripts/"))) {
+    return "Release Automation Policy Update";
+  }
+  if (
+    normalized.includes("package.json") ||
+    normalized.includes("tool.manifest.json") ||
+    normalized.includes("RELEASE.md")
+  ) {
+    return "Version Synchronization Update";
+  }
+  return "Project Maintenance Update";
 }
 
 function readStagedDiff(file) {
@@ -63,37 +100,37 @@ function describeFileChange(file, changedSet) {
     /parseVersionLogEntries|candidate|version/i.test(diff) &&
     /release/i.test(diff)
   ) {
-    return "- Đã sửa logic đọc release log để chọn nguồn có version cao nhất thay vì lấy candidate đầu tiên.";
+    return "- Updated YTB release log parsing logic to select the highest-version source instead of taking the first candidate.";
   }
   if (normalized === "RELEASE.md") {
-    return "- Đã cập nhật release log với mô tả thay đổi chi tiết, ưu tiên nội dung theo hành vi đã sửa.";
+    return "- Updated `RELEASE.md` with behavior-focused, concrete change descriptions.";
   }
   if (normalized === "package.json") {
-    return "- Đã cập nhật `package.json` (scripts/version) để khớp luồng release tự động.";
+    return "- Updated `package.json` scripts/version metadata to match the automated release flow.";
   }
   if (normalized === "tool.manifest.json") {
-    return "- Đã đồng bộ `tool.manifest.json` theo version hiện hành của dự án.";
+    return "- Synchronized `tool.manifest.json` release version with the project source version.";
   }
   if (normalized.startsWith(".githooks/")) {
-    return `- Đã cập nhật Git hook \`${normalized}\` để cưỡng chế quy trình tự bump/sync version.`;
+    return `- Updated Git hook \`${normalized}\` to enforce automatic version bump and sync policy.`;
   }
   if (normalized.startsWith(".github/workflows/")) {
-    return `- Đã cập nhật workflow CI \`${normalized}\` để kiểm tra điều kiện release/version.`;
+    return `- Updated CI workflow \`${normalized}\` for stricter release/version validation behavior.`;
   }
   if (normalized.startsWith("scripts/")) {
-    return `- Đã cập nhật script tự động \`${normalized}\` để tăng độ ổn định đồng bộ version/release.`;
+    return `- Updated automation script \`${normalized}\` to improve release/version synchronization reliability.`;
   }
   if (normalized.startsWith("src/") || normalized.startsWith("electron/")) {
-    return `- Đã cập nhật logic ứng dụng tại \`${normalized}\`.`;
+    return `- Updated application logic in \`${normalized}\`.`;
   }
   if (
     changedSet.has("package.json") &&
     changedSet.has("tool.manifest.json") &&
     changedSet.has("RELEASE.md")
   ) {
-    return "- Đã đồng bộ và xác nhận lại version giữa `package.json`, `tool.manifest.json`, và `RELEASE.md`.";
+    return "- Synchronized and re-validated version consistency across `package.json`, `tool.manifest.json`, and `RELEASE.md`.";
   }
-  return `- Đã cập nhật \`${normalized}\`.`;
+  return `- Updated \`${normalized}\`.`;
 }
 
 const stagedFiles = readChangedFiles("git diff --cached --name-only");
@@ -106,6 +143,7 @@ const summarySourceFiles = meaningfulFiles.length > 0 ? meaningfulFiles : change
 const filesForSummary = summarySourceFiles.slice(0, 5);
 const hiddenCount = Math.max(0, summarySourceFiles.length - filesForSummary.length);
 const releaseMeta = inferReleaseType(summarySourceFiles);
+const releaseHeadline = inferReleaseHeadline(summarySourceFiles);
 const changedSet = new Set(changedFiles.map((file) => file.replace(/\\/g, "/")));
 const changeLines = filesForSummary.map((file) => describeFileChange(file, changedSet));
 
@@ -142,7 +180,7 @@ const header = content.slice(0, firstEntryIndex);
 const entries = content.slice(firstEntryIndex);
 const headerWithSpacing = header.endsWith("\n\n") ? header : `${header}\n`;
 
-const newEntry = `## ${headingDate} - ${releaseMeta.title} ${version}
+const newEntry = `## ${headingDate} - ${releaseHeadline} ${version}
 
 - Version: \`${version}\`
 - Timestamp: ${timestamp}
@@ -152,9 +190,9 @@ const newEntry = `## ${headingDate} - ${releaseMeta.title} ${version}
 
 ### Changes
 
-- Đã tăng version release lên \`${version}\`.
+- Bumped release version to \`${version}\`.
 ${changeLines.join("\n")}
-${hiddenCount > 0 ? `- Có thêm ${hiddenCount} file đã thay đổi liên quan.` : ""}
+${hiddenCount > 0 ? `- Additional updated files related to this release: +${hiddenCount}.` : ""}
 
 ### Verification
 
