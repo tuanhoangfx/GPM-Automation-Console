@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+
+echo "[hook] release stamp"
+pnpm release:stamp
+
+git add package.json tool.manifest.json CHANGELOG.md TOOL_STATUS.md

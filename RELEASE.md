@@ -70,6 +70,25 @@ Before publishing a new version:
 8. Publish with `corepack pnpm release`.
 9. Confirm GitHub `releases/latest` returns the new tag and includes the setup `.exe`, `.nsis.7z`, and `latest.yml`.
 
+## Local Auto-Release Mode
+
+This repository uses local git hooks to keep release metadata synchronized on every commit:
+
+- `pre-commit`: runs `pnpm release:stamp` and stages `package.json`, `tool.manifest.json`, `CHANGELOG.md`, and `TOOL_STATUS.md`.
+- `post-commit`: runs `pnpm release:tag-local` to create an annotated tag `v<version>` if it does not exist.
+
+Hook setup command:
+
+```powershell
+corepack pnpm hooks:install
+```
+
+One-command rollback by version tag:
+
+```powershell
+git reset --hard v0.1.4
+```
+
 Runtime dependency check:
 
 ```powershell

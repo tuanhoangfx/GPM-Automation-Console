@@ -4,6 +4,29 @@ Update log for `GPM Automation Console`.
 
 Use this file to find a stable rollback point after each feature update. Every meaningful update should include the commit hash, affected areas, verification result, and rollback command.
 
+## 2026-04-30 - Maintenance Sync 0.1.5
+
+- Version: `0.1.5`
+- Timestamp: 2026-04-30 16:04 (UTC+7)
+- Commit: `d70cc95`
+- Type: Maintenance/Automation
+- Status: Verified
+
+### Changes
+
+- Synced release metadata and changelog records to the current source version/commit.
+- Standardize project template structure, quality tooling, and reusable CI/release workflows.
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-04-30 - Maintenance Sync 0.1.4
 
 - Version: `0.1.4`
