@@ -4,6 +4,30 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-04-30 - Automation Update 0.2.3
+
+- Version: `0.2.3`
+- Timestamp: 2026-04-30 18:49 (UTC+7)
+- Commit: `7eed466`
+- Type: Maintenance/Automation
+- Status: Verified
+
+### Changes
+
+- Đã tăng version release lên `0.2.3`.
+- Đã cập nhật script tự động `scripts/sync-release-log.mjs` để tăng độ ổn định đồng bộ version/release.
+
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-04-30 - Automation Update 0.2.2
 
 - Version: `0.2.2`

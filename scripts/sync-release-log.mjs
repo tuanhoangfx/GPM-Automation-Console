@@ -46,15 +46,68 @@ function inferReleaseType(files) {
   return { title: "Project Update", type: "Maintenance/Docs" };
 }
 
+function readStagedDiff(file) {
+  try {
+    return execSync(`git diff --cached -- "${file}"`, { cwd: rootDir, encoding: "utf8" });
+  } catch {
+    return "";
+  }
+}
+
+function describeFileChange(file, changedSet) {
+  const normalized = file.replace(/\\/g, "/");
+  const diff = readStagedDiff(normalized);
+
+  if (
+    normalized === "src/App.tsx" &&
+    /parseVersionLogEntries|candidate|version/i.test(diff) &&
+    /release/i.test(diff)
+  ) {
+    return "- Đã sửa logic đọc release log để chọn nguồn có version cao nhất thay vì lấy candidate đầu tiên.";
+  }
+  if (normalized === "RELEASE.md") {
+    return "- Đã cập nhật release log với mô tả thay đổi chi tiết, ưu tiên nội dung theo hành vi đã sửa.";
+  }
+  if (normalized === "package.json") {
+    return "- Đã cập nhật `package.json` (scripts/version) để khớp luồng release tự động.";
+  }
+  if (normalized === "tool.manifest.json") {
+    return "- Đã đồng bộ `tool.manifest.json` theo version hiện hành của dự án.";
+  }
+  if (normalized.startsWith(".githooks/")) {
+    return `- Đã cập nhật Git hook \`${normalized}\` để cưỡng chế quy trình tự bump/sync version.`;
+  }
+  if (normalized.startsWith(".github/workflows/")) {
+    return `- Đã cập nhật workflow CI \`${normalized}\` để kiểm tra điều kiện release/version.`;
+  }
+  if (normalized.startsWith("scripts/")) {
+    return `- Đã cập nhật script tự động \`${normalized}\` để tăng độ ổn định đồng bộ version/release.`;
+  }
+  if (normalized.startsWith("src/") || normalized.startsWith("electron/")) {
+    return `- Đã cập nhật logic ứng dụng tại \`${normalized}\`.`;
+  }
+  if (
+    changedSet.has("package.json") &&
+    changedSet.has("tool.manifest.json") &&
+    changedSet.has("RELEASE.md")
+  ) {
+    return "- Đã đồng bộ và xác nhận lại version giữa `package.json`, `tool.manifest.json`, và `RELEASE.md`.";
+  }
+  return `- Đã cập nhật \`${normalized}\`.`;
+}
+
 const stagedFiles = readChangedFiles("git diff --cached --name-only");
 const workingTreeFiles = readChangedFiles("git diff --name-only");
 const changedFiles = unique([...stagedFiles, ...workingTreeFiles]);
 const meaningfulFiles = changedFiles.filter(
   (file) => !["package.json", "tool.manifest.json", "RELEASE.md"].includes(file.replace(/\\/g, "/"))
 );
-const filesForSummary = (meaningfulFiles.length > 0 ? meaningfulFiles : changedFiles).slice(0, 5);
-const hiddenCount = Math.max(0, (meaningfulFiles.length > 0 ? meaningfulFiles : changedFiles).length - filesForSummary.length);
-const releaseMeta = inferReleaseType(meaningfulFiles.length > 0 ? meaningfulFiles : changedFiles);
+const summarySourceFiles = meaningfulFiles.length > 0 ? meaningfulFiles : changedFiles;
+const filesForSummary = summarySourceFiles.slice(0, 5);
+const hiddenCount = Math.max(0, summarySourceFiles.length - filesForSummary.length);
+const releaseMeta = inferReleaseType(summarySourceFiles);
+const changedSet = new Set(changedFiles.map((file) => file.replace(/\\/g, "/")));
+const changeLines = filesForSummary.map((file) => describeFileChange(file, changedSet));
 
 const now = new Date();
 const headingDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -99,9 +152,9 @@ const newEntry = `## ${headingDate} - ${releaseMeta.title} ${version}
 
 ### Changes
 
-- Updated source version to \`${version}\` and synced release metadata.
-${filesForSummary.map((file) => `- Updated \`${file.replace(/\\/g, "/")}\`.`).join("\n")}
-${hiddenCount > 0 ? `- Additional updated files: +${hiddenCount}.` : ""}
+- Đã tăng version release lên \`${version}\`.
+${changeLines.join("\n")}
+${hiddenCount > 0 ? `- Có thêm ${hiddenCount} file đã thay đổi liên quan.` : ""}
 
 ### Verification
 
