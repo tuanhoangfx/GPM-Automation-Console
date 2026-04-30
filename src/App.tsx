@@ -55,9 +55,9 @@ import {
   setStoredBaseUrl,
   startProfile
 } from "./api";
-import { useProfiles } from "./hooks/useProfiles";
-import { useWorkflows } from "./hooks/useWorkflows";
-import { profileId, profileName } from "./lib/profiles";
+import { useProfiles } from "./features/profiles/useProfiles";
+import { profileId, profileName } from "./features/profiles/profile-utils";
+import { useWorkflows } from "./features/workflows/useWorkflows";
 import type { GpmGroup, GpmProfile, ProfileRow, RunLog, ScriptStep, ScriptStepKind } from "./types";
 
 type View = "profiles" | "scripts" | "settings";

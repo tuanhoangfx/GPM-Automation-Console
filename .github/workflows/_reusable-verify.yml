@@ -1,26 +1,29 @@
-name: Metadata and Build
+name: Reusable Verify
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
+    inputs:
+      run_smoke:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
@@ -38,5 +41,15 @@ jobs:
       - name: Cleanup audit
         run: pnpm audit:cleanup
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test:unit
+
       - name: Build
         run: pnpm build
+
+      - name: Smoke test
+        if: ${{ inputs.run_smoke }}
+        run: pnpm test:smoke:ci

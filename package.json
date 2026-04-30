@@ -1,6 +1,6 @@
 {
   "name": "gpm-automation-console",
-  "version": "0.1.4",
+  "version": "0.1.3",
   "private": true,
   "description": "Desktop console for managing and automating GPM Login profiles.",
   "author": "GPM Automation Console",
@@ -12,6 +12,15 @@
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "tsc --noEmit && vite build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:smoke": "pnpm build",
+    "test:smoke:ci": "pnpm test:smoke",
+    "test:live": "pnpm test:smoke",
     "audit:cleanup": "node scripts/audit-cleanup.mjs",
     "sync:bump": "node scripts/bump-patch-version.mjs",
     "sync:changelog": "node scripts/sync-changelog.mjs",
@@ -37,12 +46,20 @@
     "wait-on": "^9.0.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "cross-env": "^10.1.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.8.1",
-    "typescript": "^5.9.3"
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.1",
+    "vitest": "^3.2.4"
   },
   "build": {
     "appId": "com.gpm.automation-console",
