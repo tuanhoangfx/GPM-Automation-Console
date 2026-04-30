@@ -4,6 +4,34 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-04-30 - Release Log Parsing Logic Update 0.2.5
+
+- Version: `0.2.5`
+- Timestamp: 2026-04-30 19:15 (UTC+7)
+- Commit: `7f73ea9`
+- Type: Feature/Fix
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.5`.
+- Updated Git hook `.githooks/post-commit` to enforce automatic version bump and sync policy.
+- Updated YTB release log parsing logic to select the highest-version source instead of taking the first candidate.
+- Updated application logic in `src/features/release-log/parseVersionLogEntries.ts`.
+- Updated application logic in `src/main.tsx`.
+- Updated application logic in `src/styles/workspace-design-base.css`.
+
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-04-30 - Release Automation Policy Update 0.2.4
 
 - Version: `0.2.4`

@@ -1,0 +1,470 @@
+/*
+  Canonical workspace design baseline.
+  Local copy to keep this repository self-contained.
+*/
+@import "../styles.css";
+
+/*
+  Stat card parity override:
+  enforce YT-Multistream-Console metric card styles 1:1.
+*/
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  min-height: 68px;
+  padding: 0 14px;
+  background: #1f2937;
+  border: 0;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.metric-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 999px;
+  border: 0;
+  margin-top: 0;
+  background: rgb(59 130 246 / 0.13);
+}
+
+.metric-ready {
+  color: #3b82f6;
+  background: rgb(59 130 246 / 0.13);
+}
+
+.metric-running {
+  color: #22c55e;
+  background: rgb(34 197 94 / 0.14);
+}
+
+.metric-running svg {
+  transform: translateX(1px);
+}
+
+.metric-failed {
+  color: #ef4444;
+  background: rgb(239 68 68 / 0.14);
+}
+
+.metric-failed svg {
+  transform: none;
+}
+
+.metric-scheduled {
+  color: #f59e0b;
+  background: rgb(245 158 11 / 0.15);
+}
+
+.metric-applied {
+  color: #14b8a6;
+  background: rgb(20 184 166 / 0.15);
+}
+
+.metric-content {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.metric-label {
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.metric-value {
+  color: #f9fafb;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.metric-card.danger .metric-value {
+  color: #f9fafb;
+}
+
+.metric-icon svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.5;
+}
+
+/*
+  Standard table header pattern:
+  top/title row + stats row + filters row + actions row.
+*/
+:root .shell .table-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+:root .shell .table-header-top > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+:root .shell .table-header-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+:root .shell .table-header-stats .metric-card {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 14px !important;
+  min-height: 68px !important;
+  padding: 0 14px !important;
+  background: #1f2937 !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+}
+
+:root .shell .table-header-stats .metric-icon {
+  display: inline-grid !important;
+  flex: 0 0 auto !important;
+  width: 40px !important;
+  height: 40px !important;
+  place-items: center !important;
+  border-radius: 999px !important;
+  border: 0 !important;
+  margin-top: 0 !important;
+}
+
+:root .shell .table-header-stats .metric-icon svg {
+  display: block !important;
+  width: 22px !important;
+  height: 22px !important;
+  stroke-width: 2.5 !important;
+}
+
+:root .shell .table-header-stats .metric-label {
+  color: #9ca3af !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+}
+
+:root .shell .table-header-stats .metric-value {
+  color: #f9fafb !important;
+  font-size: 20px !important;
+  line-height: 1.2 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+
+:root .shell .table-header-stats .metric-ready {
+  color: #3b82f6 !important;
+  background: rgb(59 130 246 / 0.13) !important;
+}
+
+:root .shell .table-header-stats .metric-running {
+  color: #22c55e !important;
+  background: rgb(34 197 94 / 0.14) !important;
+}
+
+:root .shell .table-header-stats .metric-scheduled {
+  color: #f59e0b !important;
+  background: rgb(245 158 11 / 0.15) !important;
+}
+
+:root .shell .table-header-stats .metric-applied {
+  color: #14b8a6 !important;
+  background: rgb(20 184 166 / 0.15) !important;
+}
+
+:root .shell .table-header-stats .metric-failed {
+  color: #ef4444 !important;
+  background: rgb(239 68 68 / 0.14) !important;
+}
+
+:root .shell .table-header-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px 180px;
+  gap: 8px;
+  align-items: center;
+}
+
+:root .shell .profile-filters.table-header-filters {
+  grid-template-columns: minmax(0, 1fr) 180px;
+}
+
+:root .shell .table-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+:root .shell .table-header-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+}
+
+:root .shell .table-header-actions-grid button {
+  width: 100%;
+}
+
+:root .shell .profile-table-header-actions {
+  min-height: 44px;
+  padding: 0;
+}
+
+:root .shell .profile-table-header-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:root .shell .profile-header-btn-run {
+  color: #ecfdf5;
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+  border-color: rgb(34 197 94 / 0.8);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 6px 16px rgb(22 163 74 / 0.25);
+}
+
+:root .shell .profile-header-btn-close {
+  color: #fef2f2;
+  background: linear-gradient(180deg, #f87171, #dc2626);
+  border-color: rgb(239 68 68 / 0.82);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 6px 16px rgb(220 38 38 / 0.24);
+}
+
+:root .shell .profile-header-btn-new {
+  color: #eff6ff;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  border-color: rgb(59 130 246 / 0.82);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 6px 16px rgb(37 99 235 / 0.24);
+}
+
+:root .shell .profile-header-btn-delete {
+  color: #f3f4f6;
+  background: linear-gradient(180deg, #4b5563, #1f2937);
+  border-color: rgb(107 114 128 / 0.76);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 6px 16px rgb(17 24 39 / 0.3);
+}
+
+:root .shell .profile-table-header-buttons .ghost.compact:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: saturate(1.08) brightness(1.05);
+}
+
+:root .shell .profile-table-header-buttons .ghost.compact:active:not(:disabled) {
+  transform: translateY(0);
+  filter: saturate(1.02) brightness(0.98);
+}
+
+:root .shell .profile-table-header-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+:root .shell .table-action-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  line-height: 0;
+}
+
+:root .shell .table-action-btn {
+  display: grid;
+  width: 21px;
+  min-width: 21px;
+  height: 21px;
+  min-height: 21px;
+  padding: 0;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  line-height: 0;
+}
+
+:root .shell .table-action-btn svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+
+:root .shell .table-action-btn:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+:root .shell .table-action-btn:disabled {
+  opacity: 0.35;
+}
+
+:root .shell .table-action-run {
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-3));
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+:root .shell .table-action-export {
+  color: #d8b4fe;
+  background: color-mix(in srgb, var(--violet) 20%, var(--surface-3));
+  border-color: color-mix(in srgb, var(--violet) 45%, var(--border));
+}
+
+:root .shell .table-action-import {
+  color: #bae6fd;
+  background: color-mix(in srgb, #0284c7 22%, var(--surface-3));
+  border-color: color-mix(in srgb, #38bdf8 45%, var(--border));
+}
+
+:root .shell .table-action-copy {
+  color: #dbeafe;
+  background: color-mix(in srgb, var(--blue) 20%, var(--surface-3));
+  border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
+}
+
+:root .shell .table-action-reset {
+  color: #fde68a;
+  background: color-mix(in srgb, var(--warning) 20%, var(--surface-3));
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+}
+
+:root .shell .table-action-close {
+  color: #ffb4b4;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+}
+
+:root .shell .table-action-close:hover {
+  color: color-mix(in srgb, var(--danger) 78%, #ffffff);
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 68%, var(--border));
+}
+
+:root .shell .queue-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-start;
+}
+
+:root .shell .table-col-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c7cfdd;
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.01em;
+}
+
+:root .shell .table-col-head svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
+}
+
+:root .shell .table-col-profile svg,
+:root .shell .table-col-group svg {
+  color: #60a5fa;
+}
+
+:root .shell .table-col-status svg {
+  color: #22c55e;
+}
+
+:root .shell .table-col-proxy svg {
+  color: #38bdf8;
+}
+
+:root .shell .table-col-note svg {
+  color: #a78bfa;
+}
+
+:root .shell .table-col-actions svg {
+  color: #f59e0b;
+}
+
+:root .shell .row-select-table th {
+  height: 34px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+:root .shell .row-select-table td {
+  height: 42px !important;
+  font-size: 12px !important;
+}
+
+:root .shell .table-wrap::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.source-badge,
+.status-pill {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.source-badge {
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-pill {
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: flex-start;
+}
+
+.status-icon,
+.source-badge svg {
+  width: 13px;
+  height: 13px;
+}
+
+:root .modal-card.drive-picker-modal,
+:root .modal-card.drive-modal {
+  width: 80vw !important;
+  height: 80vh !important;
+  min-width: 80vw !important;
+  min-height: 80vh !important;
+  max-width: 80vw !important;
+  max-height: 80vh !important;
+}
+
+:root .modal-actions-centered {
+  justify-content: center !important;
+  gap: 12px !important;
+}

@@ -8,5 +8,3 @@ fi
 
 echo "[hook] local release tag"
 pnpm release:tag-local
-echo "[hook] auto-commit dirty changes"
-pnpm commit:auto
