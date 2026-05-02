@@ -201,13 +201,14 @@
 
 :root .shell .table-header-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px 180px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 180px) minmax(160px, 180px);
   gap: 8px;
   align-items: center;
 }
 
+/* Profile row: search + Group + Status — use three columns (do not use a 2-col grid or the third control wraps and stretches to 1fr). */
 :root .shell .profile-filters.table-header-filters {
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 180px) minmax(160px, 180px);
 }
 
 :root .shell .table-header-actions {
@@ -385,6 +386,38 @@
   width: 13px;
   height: 13px;
   stroke-width: 2.2;
+}
+
+:root .shell button.table-sort-head {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  text-align: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+:root .shell button.table-sort-head:hover,
+:root .shell button.table-sort-head:focus-visible {
+  color: #e2e8f0;
+}
+
+:root .shell button.table-sort-head .sort-icon {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 12px !important;
+  height: 12px !important;
+}
+
+:root .shell button.table-sort-head .sort-icon.muted {
+  opacity: 0.45;
+}
+
+:root .shell button.table-sort-head .sort-icon.active {
+  opacity: 1;
 }
 
 :root .shell .table-col-profile svg,

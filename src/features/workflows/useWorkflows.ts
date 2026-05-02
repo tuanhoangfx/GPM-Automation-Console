@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type WorkflowLike = {
   id: string;
@@ -19,6 +19,8 @@ export function useWorkflows<TWorkflow extends WorkflowLike>(
   const [workflowSearch, setWorkflowSearch] = useState("");
   const [workflowGroupFilters, setWorkflowGroupFilters] = useState<string[]>([]);
   const [workflowPlatformFilters, setWorkflowPlatformFilters] = useState<string[]>([]);
+  const [workflowTablePage, setWorkflowTablePage] = useState(1);
+  const [workflowTablePageSize, setWorkflowTablePageSize] = useState(100);
 
   const selectedWorkflowConfigs = useMemo(
     () => selectedWorkflowIds.map((id) => workflowConfigs.find((workflow) => workflow.id === id)).filter(Boolean) as TWorkflow[],
@@ -55,6 +57,24 @@ export function useWorkflows<TWorkflow extends WorkflowLike>(
     });
   }, [workflowConfigs, workflowDisplayId, workflowDisplayPlatform, workflowGroupFilters, workflowPlatformFilters, workflowSearch]);
 
+  const workflowTableTotalPages = Math.max(1, Math.ceil(filteredWorkflows.length / workflowTablePageSize));
+  const workflowTablePageStart = (workflowTablePage - 1) * workflowTablePageSize;
+  const workflowTablePageEnd = Math.min(workflowTablePageStart + workflowTablePageSize, filteredWorkflows.length);
+  const pagedFilteredWorkflows = useMemo(
+    () => filteredWorkflows.slice(workflowTablePageStart, workflowTablePageEnd),
+    [filteredWorkflows, workflowTablePageStart, workflowTablePageEnd]
+  );
+
+  useEffect(() => {
+    if (workflowTablePage > workflowTableTotalPages) {
+      setWorkflowTablePage(workflowTableTotalPages);
+    }
+  }, [workflowTablePage, workflowTableTotalPages]);
+
+  useEffect(() => {
+    setWorkflowTablePage(1);
+  }, [workflowSearch, workflowGroupFilters, workflowPlatformFilters, workflowTablePageSize]);
+
   const selectedWorkflowCount = selectedWorkflowIds.length;
   const visibleWorkflowSteps = filteredWorkflows.reduce((count, workflow) => count + workflow.steps.length, 0);
 
@@ -69,6 +89,14 @@ export function useWorkflows<TWorkflow extends WorkflowLike>(
     workflowGroupOptions,
     workflowPlatformOptions,
     filteredWorkflows,
+    pagedFilteredWorkflows,
+    workflowTablePage,
+    setWorkflowTablePage,
+    workflowTablePageSize,
+    setWorkflowTablePageSize,
+    workflowTableTotalPages,
+    workflowTablePageStart,
+    workflowTablePageEnd,
     selectedWorkflowCount,
     visibleWorkflowSteps
   };

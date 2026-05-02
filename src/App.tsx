@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ArrowDown,
   ArrowUp,
+  ArrowUpDown,
   BookOpen,
   CircleAlert,
   ClipboardList,
@@ -66,7 +67,7 @@ import {
   setStoredBaseUrl,
   startProfile
 } from "./api";
-import { useProfiles } from "./features/profiles/useProfiles";
+import { useProfiles, type ProfileSortDirection } from "./features/profiles/useProfiles";
 import { profileId, profileName, syncProfileRowState } from "./features/profiles/profile-utils";
 import { parseVersionLogEntries, type ParsedVersionLogEntry } from "./features/release-log/parseVersionLogEntries";
 import { executeWorkflowAction, type WorkflowExecutorAction } from "./features/workflows/workflow-executors";
@@ -528,6 +529,20 @@ function StatusMarker({ status }: { status: ProfileRow["status"] }) {
   return <XCircle size={13} />;
 }
 
+function ProfileSortIndicator({ active, direction }: { active: boolean; direction: ProfileSortDirection }) {
+  if (!active) return <ArrowUpDown size={12} className="sort-icon muted" aria-hidden />;
+  return direction === "asc" ? (
+    <ArrowUp size={12} className="sort-icon active" aria-hidden />
+  ) : (
+    <ArrowDown size={12} className="sort-icon active" aria-hidden />
+  );
+}
+
+function profileColumnSortTitle(label: string, active: boolean, direction: ProfileSortDirection) {
+  if (!active) return `${label}: sort A-Z (default)`;
+  return direction === "asc" ? `${label}: A-Z (click for Z-A)` : `${label}: Z-A (click for A-Z)`;
+}
+
 function formatDuration(ms: number) {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
@@ -683,7 +698,9 @@ function MultiSelectDropdown({
   const displayLabel =
     selectedLabels.length === 0 ? label : selectedLabels.length === 1 ? selectedLabels[0] : `${selectedLabels.length} ${summaryLabel || "selected"}`;
   const selectedOption = options.find((option) => selectedSet.has(option.value));
-  const triggerTone = selectedSet.size === 0 ? defaultTone : selectedSet.size === 1 ? selectedOption?.tone : undefined;
+  /** Text uses semantic tones only after a selection; placeholder label stays default (like column headings). Icon still uses category tone when idle. */
+  const labelTone = selectedSet.size === 1 ? selectedOption?.tone : undefined;
+  const markerTone = selectedSet.size === 0 ? defaultTone : selectedSet.size === 1 ? selectedOption?.tone : undefined;
 
   function DropdownOptionMarker({ tone, dotTone }: { tone?: DropdownOption["tone"]; dotTone?: DropdownOption["dotTone"] }) {
     if (dotTone) return <span className={`dropdown-option-dot ${dotTone}`} />;
@@ -722,8 +739,8 @@ function MultiSelectDropdown({
       }}
     >
       <button type="button" className="smart-dropdown-trigger" onClick={() => setOpen((current) => !current)}>
-        <span className={triggerTone ? `dropdown-trigger-label ${triggerTone}` : "dropdown-trigger-label"}>
-          <DropdownOptionMarker tone={triggerTone} dotTone={selectedSet.size === 1 ? selectedOption?.dotTone : undefined} />
+        <span className={labelTone ? `dropdown-trigger-label ${labelTone}` : "dropdown-trigger-label"}>
+          <DropdownOptionMarker tone={markerTone} dotTone={selectedSet.size === 1 ? selectedOption?.dotTone : undefined} />
           {displayLabel}
         </span>
         <ChevronDown size={15} className="dropdown-chevron" />
@@ -939,11 +956,13 @@ export function App() {
     setCurrentPage,
     pageSize,
     setPageSize,
+    sortColumn,
+    sortDirection,
+    toggleProfileSort,
     selectedProfiles,
     filteredProfiles,
     totalPages,
     pageStart,
-    pageEnd,
     pagedProfiles,
     profileCounts
   } = useProfiles(profiles, selected);
@@ -1882,35 +1901,65 @@ export function App() {
                   <table className="queue-table profile-table profile-table-head" aria-hidden="true">
                     <thead>
                       <tr>
-                        <th>
-                          <span className="table-col-head table-col-profile">
+                        <th aria-sort={sortColumn === "profile" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                          <button
+                            type="button"
+                            className="table-sort-head table-col-head table-col-profile"
+                            onClick={() => toggleProfileSort("profile")}
+                            title={profileColumnSortTitle("Profile", sortColumn === "profile", sortDirection)}
+                          >
                             <Database size={13} />
                             Profile
-                          </span>
+                            <ProfileSortIndicator active={sortColumn === "profile"} direction={sortDirection} />
+                          </button>
                         </th>
-                        <th>
-                          <span className="table-col-head table-col-group">
+                        <th aria-sort={sortColumn === "group" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                          <button
+                            type="button"
+                            className="table-sort-head table-col-head table-col-group"
+                            onClick={() => toggleProfileSort("group")}
+                            title={profileColumnSortTitle("Group", sortColumn === "group", sortDirection)}
+                          >
                             <Layers3 size={13} />
                             Group
-                          </span>
+                            <ProfileSortIndicator active={sortColumn === "group"} direction={sortDirection} />
+                          </button>
                         </th>
-                        <th>
-                          <span className="table-col-head table-col-status">
+                        <th aria-sort={sortColumn === "status" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                          <button
+                            type="button"
+                            className="table-sort-head table-col-head table-col-status"
+                            onClick={() => toggleProfileSort("status")}
+                            title={profileColumnSortTitle("Status", sortColumn === "status", sortDirection)}
+                          >
                             <CheckCircle2 size={13} />
                             Status
-                          </span>
+                            <ProfileSortIndicator active={sortColumn === "status"} direction={sortDirection} />
+                          </button>
                         </th>
-                        <th>
-                          <span className="table-col-head table-col-proxy">
+                        <th aria-sort={sortColumn === "proxy" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                          <button
+                            type="button"
+                            className="table-sort-head table-col-head table-col-proxy"
+                            onClick={() => toggleProfileSort("proxy")}
+                            title={profileColumnSortTitle("Proxy", sortColumn === "proxy", sortDirection)}
+                          >
                             <Globe2 size={13} />
                             Proxy
-                          </span>
+                            <ProfileSortIndicator active={sortColumn === "proxy"} direction={sortDirection} />
+                          </button>
                         </th>
-                        <th>
-                          <span className="table-col-head table-col-note">
+                        <th aria-sort={sortColumn === "note" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                          <button
+                            type="button"
+                            className="table-sort-head table-col-head table-col-note"
+                            onClick={() => toggleProfileSort("note")}
+                            title={profileColumnSortTitle("Note", sortColumn === "note", sortDirection)}
+                          >
                             <MessageCircle size={13} />
                             Note
-                          </span>
+                            <ProfileSortIndicator active={sortColumn === "note"} direction={sortDirection} />
+                          </button>
                         </th>
                         <th className="action-col">
                           <span className="table-col-head table-col-actions">
@@ -1996,9 +2045,6 @@ export function App() {
                     </button>
                   </div>
                   <div className="pagination-meta">
-                    <span>
-                      {filteredProfiles.length === 0 ? "0" : pageStart + 1}-{pageEnd} of {filteredProfiles.length} profiles
-                    </span>
                     <label>
                       Profiles per page
                       <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>

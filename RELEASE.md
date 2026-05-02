@@ -4,6 +4,34 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-05-03 - Release Log Parsing Logic Update
+
+- Version: `0.2.18`
+- Timestamp: 2026-05-03 03:14 (UTC+7)
+- Commit: `f1ff5da`
+- Type: Feature/Fix
+- Status: Verified
+
+### Changes
+
+- Feature areas touched: App Core (4), Profiles (2), UI (1).
+- Refactored workflow runtime in `src/App.tsx` to route execution through action executors and support non-URL actions cleanly.
+- Updated `src/features/profiles/profile-utils.ts` with behavior changes included in this release.
+- Updated `src/features/profiles/useProfiles.ts` with behavior changes included in this release.
+- Updated `src/features/workflows/useWorkflows.ts` with behavior changes included in this release.
+- Updated `src/main.tsx` with behavior changes included in this release.
+- Additional updated files related to this release: +3.
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-05-03 - Internal Maintenance
 
 - Version: `0.2.17`

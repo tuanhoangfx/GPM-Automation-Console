@@ -1,6 +1,6 @@
 {
   "name": "gpm-automation-console",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "private": true,
   "description": "Desktop console for managing and automating GPM Login profiles.",
   "author": "GPM Automation Console",
