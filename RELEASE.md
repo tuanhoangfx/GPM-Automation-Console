@@ -4,6 +4,29 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-05-03 - Internal Maintenance
+
+- Version: `0.2.19`
+- Timestamp: 2026-05-03 03:27 (UTC+7)
+- Commit: `0ce0251`
+- Type: Maintenance/Internal
+- Status: Verified
+
+### Changes
+
+- Feature areas touched: none (internal-only update).
+- Restored theme and overlay infrastructure so popovers and dialogs render reliably with correct dark/light styling.
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-05-03 - Release Log Parsing Logic Update
 
 - Version: `0.2.18`

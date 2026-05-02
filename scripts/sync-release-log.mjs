@@ -31,10 +31,6 @@ function readChangedFiles(command) {
   }
 }
 
-function unique(values) {
-  return [...new Set(values)];
-}
-
 function isProductFacingFile(file) {
   const normalized = file.replace(/\\/g, "/");
   return normalized.startsWith("src/") || normalized.startsWith("electron/");
@@ -87,11 +83,8 @@ function inferReleaseHeadline(files) {
   const normalized = files.map((file) => file.replace(/\\/g, "/"));
   const areas = featureAreaSummary(files).map((item) => item.split(" (")[0]);
 
-  if (normalized.includes("src/App.tsx")) {
-    const appDiff = readStagedDiff("src/App.tsx");
-    if (/parseVersionLogEntries|candidate|version/i.test(appDiff) && /release/i.test(appDiff)) {
-      return "Release Log Parsing Logic Update";
-    }
+  if (normalized.some((file) => file.startsWith("src/features/release-log/"))) {
+    return "Release Log Experience Update";
   }
   if (normalized.some((file) => file.startsWith("src/features/workflows/"))) {
     return "Workflow Execution Logic Update";
@@ -124,90 +117,69 @@ function inferReleaseHeadline(files) {
   return "Project Maintenance Update";
 }
 
-function readStagedDiff(file) {
+function readDiff(command) {
   try {
-    return execSync(`git diff --cached -- "${file}"`, { cwd: rootDir, encoding: "utf8" });
+    return execSync(command, { cwd: rootDir, encoding: "utf8" });
   } catch {
     return "";
   }
 }
 
-function describeFileChange(file, changedSet) {
-  const normalized = file.replace(/\\/g, "/");
-  const diff = readStagedDiff(normalized);
+function inferUserFacingChanges(files, diff, changedSet) {
+  const normalizedFiles = files.map((file) => file.replace(/\\/g, "/"));
+  const bullets = [];
 
-  if (normalized === "src/features/workflows/workflow-executors.ts") {
-    return "- Added dedicated workflow action executors to decouple action-specific runtime logic from `App.tsx`.";
+  const has = (pattern) => pattern.test(diff);
+  const touches = (prefixOrFile) =>
+    normalizedFiles.some((file) => file === prefixOrFile || file.startsWith(`${prefixOrFile}/`));
+
+  if (touches("src/features/profiles/useProfiles.ts") && has(/sort(Column|Direction)|toggleProfileSort|ProfileTableSortKey/i)) {
+    bullets.push("- Added sortable profile table headers (A-Z/Z-A) across key columns, with Profile defaulting to A-Z.");
   }
-  if (normalized === "src/App.tsx") {
-    if (/set-screen-resolution-real|executeWorkflowAction/.test(diff)) {
-      return "- Refactored workflow runtime in `src/App.tsx` to route execution through action executors and support non-URL actions cleanly.";
-    }
-    return "- Refined workflow and runtime orchestration behavior in `src/App.tsx`.";
+  if ((touches("src/App.tsx") || touches("src/styles/workspace-design-base.css")) && has(/table-sort-head|aria-sort|ArrowUpDown|profileColumnSortTitle/i)) {
+    bullets.push("- Improved table sorting UX with clearer sort indicators, better accessibility semantics, and click-friendly header controls.");
   }
-  if (normalized === "src/styles.css") {
-    if (/native-drawer|history-dot/.test(diff)) {
-      return "- Balanced runtime panel layout to a 50/50 Run History/Console split and reduced history dot marker size for denser monitoring.";
-    }
-    return "- Updated runtime visual styling in `src/styles.css`.";
+  if (touches("src/App.tsx") && has(/MultiSelectDropdown|dropdown-trigger-label|labelTone|markerTone/i)) {
+    bullets.push("- Standardized profile filter dropdown behavior so Status/Group controls keep consistent sizing and neutral default labels.");
   }
-  if (normalized === "src/api.ts") {
-    if (/updateProfile/.test(diff)) {
-      return "- Added `updateProfile` API helper to support workflow-level profile patch actions.";
-    }
-    return "- Updated API integration helpers in `src/api.ts`.";
+  if (touches("src/theme.ts") || touches("src/ui/PortaledThemeSurface.tsx") || has(/readStoredThemeMode|syncDocumentTheme|PortaledThemeSurface/i)) {
+    bullets.push("- Restored theme and overlay infrastructure so popovers and dialogs render reliably with correct dark/light styling.");
   }
-  if (
-    normalized === "src/App.tsx" &&
-    /parseVersionLogEntries|candidate|version/i.test(diff) &&
-    /release/i.test(diff)
-  ) {
-    return "- Updated YTB release log parsing logic to select the highest-version source instead of taking the first candidate.";
+  if (touches("src/features/workflows/useWorkflows.ts") && has(/workflowTablePage|pagedFilteredWorkflows|workflowTablePageSize/i)) {
+    bullets.push("- Added workflow list pagination state to keep large workflow tables responsive and easier to navigate.");
   }
-  if (normalized === "RELEASE.md") {
-    return "- Updated `RELEASE.md` with behavior-focused, concrete change descriptions.";
+  if (touches("src/features/profiles/profile-utils.ts") && has(/syncProfileRowState|lastMessage|status/i)) {
+    bullets.push("- Stabilized profile status rendering by preserving in-flight state while API polling refreshes rows.");
   }
-  if (normalized === "package.json") {
-    return "- Updated `package.json` scripts/version metadata to match the automated release flow.";
+  if (changedSet.has("package.json") && changedSet.has("tool.manifest.json")) {
+    bullets.push("- Synchronized app version metadata for a consistent release package across runtime and manifest.");
   }
-  if (normalized === "tool.manifest.json") {
-    return "- Synchronized `tool.manifest.json` release version with the project source version.";
+
+  if (bullets.length > 0) {
+    return bullets.slice(0, 6);
   }
-  if (normalized.startsWith(".githooks/")) {
-    return `- Updated Git hook \`${normalized}\` to enforce automatic version bump and sync policy.`;
+
+  if (normalizedFiles.length === 0) {
+    return ["- No end-user behavior changes in this release (internal maintenance only)."];
   }
-  if (normalized.startsWith(".github/workflows/")) {
-    return `- Updated CI workflow \`${normalized}\` for stricter release/version validation behavior.`;
-  }
-  if (normalized.startsWith("scripts/")) {
-    return `- Updated automation script \`${normalized}\` to improve release/version synchronization reliability.`;
-  }
-  if (normalized.startsWith("src/") || normalized.startsWith("electron/")) {
-    return `- Updated \`${normalized}\` with behavior changes included in this release.`;
-  }
-  if (
-    changedSet.has("package.json") &&
-    changedSet.has("tool.manifest.json") &&
-    changedSet.has("RELEASE.md")
-  ) {
-    return "- Synchronized and re-validated version consistency across `package.json`, `tool.manifest.json`, and `RELEASE.md`.";
-  }
-  return `- Updated \`${normalized}\`.`;
+
+  const areas = featureAreaSummary(files);
+  return [
+    `- Improved ${areas.length > 0 ? areas.map((item) => item.split(" (")[0].toLowerCase()).join(", ") : "application behavior"} in this release.`
+  ];
 }
 
 const stagedFiles = readChangedFiles("git diff --cached --name-only");
 const changedFiles = stagedFiles.length ? stagedFiles : readChangedFiles("git diff --name-only");
 const meaningfulFiles = changedFiles.filter((file) => isProductFacingFile(file));
 const summarySourceFiles = meaningfulFiles;
-const filesForSummary = summarySourceFiles.slice(0, 5);
-const hiddenCount = Math.max(0, summarySourceFiles.length - filesForSummary.length);
+const stagedUnifiedDiff = readDiff("git diff --cached --");
+const workingUnifiedDiff = stagedUnifiedDiff ? "" : readDiff("git diff --");
+const unifiedDiff = stagedUnifiedDiff || workingUnifiedDiff;
 const releaseMeta = inferReleaseType(summarySourceFiles);
 const releaseHeadline = inferReleaseHeadline(summarySourceFiles);
 const changedSet = new Set(changedFiles.map((file) => file.replace(/\\/g, "/")));
-const changeLines =
-  filesForSummary.length > 0
-    ? filesForSummary.map((file) => describeFileChange(file, changedSet))
-    : ["- No end-user feature or UI behavior changes in this release (internal tooling/release maintenance only)."];
+const changeLines = inferUserFacingChanges(summarySourceFiles, unifiedDiff, changedSet);
 const areaHighlights = featureAreaSummary(summarySourceFiles);
 
 const now = new Date();
@@ -255,7 +227,6 @@ const newEntry = `## ${headingDate} - ${releaseHeadline}
 
 - ${areaHighlights.length > 0 ? `Feature areas touched: ${areaHighlights.join(", ")}.` : "Feature areas touched: none (internal-only update)."}
 ${changeLines.join("\n")}
-${hiddenCount > 0 ? `- Additional updated files related to this release: +${hiddenCount}.` : ""}
 
 ### Verification
 
