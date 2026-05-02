@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const fs = require("node:fs");
 const path = require("node:path");
 const { runOpenUrlAutomation } = require("./automation.cjs");
 
@@ -165,6 +166,7 @@ function configureAutoUpdater() {
 }
 
 function createWindow() {
+  const windowsIconPath = path.join(__dirname, "..", "build", "icons", "app.ico");
   const win = new BrowserWindow({
     width: 1380,
     height: 880,
@@ -172,6 +174,7 @@ function createWindow() {
     minHeight: 720,
     backgroundColor: "#f5f2eb",
     title: "GPM Automation Console",
+    ...(fs.existsSync(windowsIconPath) ? { icon: windowsIconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

@@ -113,10 +113,19 @@ html[data-theme="light"] {
 }
 
 .brand-mark {
-  color: #25aeea;
-  font-size: 38px;
-  font-weight: 850;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-3) 76%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, var(--accent));
+}
+
+.brand-mark-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
 }
 
 nav {

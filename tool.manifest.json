@@ -35,16 +35,28 @@
   "github": {
     "repo": "tuanhoangfx/GPM-Automation-Console",
     "branch": "main",
-    "manifestPath": "tool.manifest.json"
+    "manifestPath": "tool.manifest.json",
+    "url": "https://github.com/tuanhoangfx/GPM-Automation-Console"
   },
   "release": {
-    "version": "0.2.21",
+    "version": "0.2.22",
     "readiness": [
       "build",
       "docs",
       "rollback",
       "package-metadata"
-    ]
+    ],
+    "latestPublished": {
+      "tag": "v0.2.21",
+      "url": "https://github.com/tuanhoangfx/GPM-Automation-Console/releases/tag/v0.2.21",
+      "publishedAt": "2026-05-02T21:16:36Z",
+      "asset": {
+        "name": "GPM-Automation-Console-Setup-0.2.21.exe",
+        "downloadUrl": "https://github.com/tuanhoangfx/GPM-Automation-Console/releases/download/v0.2.21/GPM-Automation-Console-Setup-0.2.21.exe",
+        "size": 961984,
+        "sha256": "e6f06255420e623faad3939b21e08012a74ee9c1ffad80b2dba672b041374991"
+      }
+    }
   },
   "health": {
     "status": "Ready",

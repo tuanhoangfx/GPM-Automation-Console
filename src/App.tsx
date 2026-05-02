@@ -56,6 +56,7 @@ import {
   useState
 } from "react";
 import releaseLogMarkdown from "../RELEASE.md?raw";
+import brandMarkIcon from "./assets/azure-defender-distributer-control-system.svg";
 import {
   checkHealth,
   closeProfile,
@@ -1728,7 +1729,9 @@ export function App() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand-mark">G</div>
+        <div className="brand-mark">
+          <img src={brandMarkIcon} alt="GPM brand mark" className="brand-mark-icon" />
+        </div>
         <nav>
           {navItems.map((item) => {
             const Icon = item.icon;

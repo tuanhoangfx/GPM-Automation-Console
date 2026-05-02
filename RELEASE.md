@@ -4,6 +4,29 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-05-03 - Desktop Runtime Update
+
+- Version: `0.2.22`
+- Timestamp: 2026-05-03 04:23 (UTC+7)
+- Commit: `14a31d9`
+- Type: Feature/Fix
+- Status: Verified
+
+### Changes
+
+- Feature areas touched: App Core (2), Desktop Runtime (1), UI (1).
+- Improved app core, desktop runtime, ui in this release.
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-05-03 - Internal Maintenance
 
 - Version: `0.2.21`
