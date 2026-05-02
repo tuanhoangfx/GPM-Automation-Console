@@ -1,6 +1,6 @@
 {
   "name": "gpm-automation-console",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "private": true,
   "description": "Desktop console for managing and automating GPM Login profiles.",
   "author": "GPM Automation Console",
@@ -36,9 +36,10 @@
     "rollback:list": "git tag --list \"v*\" --sort=-v:refname",
     "rollback:restore": "node scripts/rollback-to-tag.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs",
-    "pack": "corepack pnpm build && electron-builder --dir",
-    "dist": "corepack pnpm build && electron-builder --win nsis-web --publish never",
-    "release": "corepack pnpm build && electron-builder --win nsis-web --publish always",
+    "assets:icon": "node scripts/render-brand-icon.cjs",
+    "pack": "pnpm assets:icon && corepack pnpm build && electron-builder --dir",
+    "dist": "pnpm assets:icon && corepack pnpm build && electron-builder --win nsis-web --publish never",
+    "release": "pnpm assets:icon && corepack pnpm build && electron-builder --win nsis-web --publish always",
     "preview": "vite preview --host 127.0.0.1",
     "start": "electron .",
     "postinstall": "pnpm hooks:install"
@@ -66,7 +67,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "jsdom": "^26.1.0",
+    "png-to-ico": "^3.0.1",
     "prettier": "^3.8.3",
+    "sharp": "^0.34.5",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.1",
     "vitest": "^3.2.4"
@@ -85,7 +88,8 @@
       "RELEASE.md"
     ],
     "win": {
-      "target": "nsis-web"
+      "target": "nsis-web",
+      "icon": "build/icons/app.ico"
     },
     "nsisWeb": {
       "oneClick": false,

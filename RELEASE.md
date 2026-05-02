@@ -6,6 +6,29 @@ The desktop app is packaged with Electron Builder as a Windows NSIS web installe
 
 ## 2026-05-03 - Internal Maintenance
 
+- Version: `0.2.20`
+- Timestamp: 2026-05-03 04:00 (UTC+7)
+- Commit: `2fedad2`
+- Type: Maintenance/Internal
+- Status: Verified
+
+### Changes
+
+- Feature areas touched: none (internal-only update).
+- No end-user behavior changes in this release (internal maintenance only).
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
+## 2026-05-03 - Internal Maintenance
+
 - Version: `0.2.19`
 - Timestamp: 2026-05-03 03:27 (UTC+7)
 - Commit: `0ce0251`
