@@ -35,12 +35,38 @@ function unique(values) {
   return [...new Set(values)];
 }
 
+function classifyFeatureArea(file) {
+  const normalized = file.replace(/\\/g, "/");
+  if (normalized.startsWith("src/features/workflows/")) return "Workflow";
+  if (normalized.startsWith("src/features/profiles/")) return "Profiles";
+  if (normalized.startsWith("src/features/release-log/")) return "Release Log";
+  if (normalized.startsWith("src/theme/") || normalized.startsWith("src/ui/") || normalized === "src/styles.css") return "UI";
+  if (normalized.startsWith("src/")) return "App Core";
+  if (normalized.startsWith("electron/")) return "Desktop Runtime";
+  if (normalized.startsWith(".githooks/") || normalized.startsWith("scripts/")) return "Release Automation";
+  if (normalized.startsWith(".github/workflows/")) return "CI";
+  if (normalized === "package.json" || normalized === "tool.manifest.json" || normalized === "RELEASE.md") return "Release Metadata";
+  return "Maintenance";
+}
+
+function featureAreaSummary(files) {
+  const counts = new Map();
+  for (const file of files) {
+    const area = classifyFeatureArea(file);
+    counts.set(area, (counts.get(area) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([area, count]) => `${area} (${count})`);
+}
+
 function inferReleaseType(files) {
-  const normalized = files.map((file) => file.replace(/\\/g, "/"));
-  if (normalized.some((file) => file.startsWith("src/") || file.startsWith("electron/"))) {
+  const areas = new Set(files.map(classifyFeatureArea));
+  if (areas.has("Workflow") || areas.has("Profiles") || areas.has("UI") || areas.has("App Core") || areas.has("Desktop Runtime")) {
     return { type: "Feature/Fix" };
   }
-  if (normalized.some((file) => file.startsWith("scripts/") || file.startsWith(".github/workflows/") || file.startsWith(".githooks/"))) {
+  if (areas.has("Release Automation") || areas.has("CI")) {
     return { type: "Maintenance/Automation" };
   }
   return { type: "Maintenance/Docs" };
@@ -48,6 +74,7 @@ function inferReleaseType(files) {
 
 function inferReleaseHeadline(files) {
   const normalized = files.map((file) => file.replace(/\\/g, "/"));
+  const areas = featureAreaSummary(files).map((item) => item.split(" (")[0]);
 
   if (normalized.includes("src/App.tsx")) {
     const appDiff = readStagedDiff("src/App.tsx");
@@ -80,6 +107,9 @@ function inferReleaseHeadline(files) {
   ) {
     return "Version Synchronization Update";
   }
+  if (areas[0]) {
+    return `${areas[0]} Update`;
+  }
   return "Project Maintenance Update";
 }
 
@@ -95,6 +125,27 @@ function describeFileChange(file, changedSet) {
   const normalized = file.replace(/\\/g, "/");
   const diff = readStagedDiff(normalized);
 
+  if (normalized === "src/features/workflows/workflow-executors.ts") {
+    return "- Added dedicated workflow action executors to decouple action-specific runtime logic from `App.tsx`.";
+  }
+  if (normalized === "src/App.tsx") {
+    if (/set-screen-resolution-real|executeWorkflowAction/.test(diff)) {
+      return "- Refactored workflow runtime in `src/App.tsx` to route execution through action executors and support non-URL actions cleanly.";
+    }
+    return "- Refined workflow and runtime orchestration behavior in `src/App.tsx`.";
+  }
+  if (normalized === "src/styles.css") {
+    if (/native-drawer|history-dot/.test(diff)) {
+      return "- Balanced runtime panel layout to a 50/50 Run History/Console split and reduced history dot marker size for denser monitoring.";
+    }
+    return "- Updated runtime visual styling in `src/styles.css`.";
+  }
+  if (normalized === "src/api.ts") {
+    if (/updateProfile/.test(diff)) {
+      return "- Added `updateProfile` API helper to support workflow-level profile patch actions.";
+    }
+    return "- Updated API integration helpers in `src/api.ts`.";
+  }
   if (
     normalized === "src/App.tsx" &&
     /parseVersionLogEntries|candidate|version/i.test(diff) &&
@@ -121,7 +172,7 @@ function describeFileChange(file, changedSet) {
     return `- Updated automation script \`${normalized}\` to improve release/version synchronization reliability.`;
   }
   if (normalized.startsWith("src/") || normalized.startsWith("electron/")) {
-    return `- Updated application logic in \`${normalized}\`.`;
+    return `- Updated \`${normalized}\` with behavior changes included in this release.`;
   }
   if (
     changedSet.has("package.json") &&
@@ -134,8 +185,7 @@ function describeFileChange(file, changedSet) {
 }
 
 const stagedFiles = readChangedFiles("git diff --cached --name-only");
-const workingTreeFiles = readChangedFiles("git diff --name-only");
-const changedFiles = unique([...stagedFiles, ...workingTreeFiles]);
+const changedFiles = stagedFiles.length ? stagedFiles : readChangedFiles("git diff --name-only");
 const meaningfulFiles = changedFiles.filter(
   (file) => !["package.json", "tool.manifest.json", "RELEASE.md"].includes(file.replace(/\\/g, "/"))
 );
@@ -146,6 +196,7 @@ const releaseMeta = inferReleaseType(summarySourceFiles);
 const releaseHeadline = inferReleaseHeadline(summarySourceFiles);
 const changedSet = new Set(changedFiles.map((file) => file.replace(/\\/g, "/")));
 const changeLines = filesForSummary.map((file) => describeFileChange(file, changedSet));
+const areaHighlights = featureAreaSummary(summarySourceFiles);
 
 const now = new Date();
 const headingDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -191,6 +242,7 @@ const newEntry = `## ${headingDate} - ${releaseHeadline} ${version}
 ### Changes
 
 - Bumped release version to \`${version}\`.
+- Feature areas touched: ${areaHighlights.join(", ")}.
 ${changeLines.join("\n")}
 ${hiddenCount > 0 ? `- Additional updated files related to this release: +${hiddenCount}.` : ""}
 

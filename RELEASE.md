@@ -4,6 +4,31 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-05-03 - Release Automation Policy Update 0.2.16
+
+- Version: `0.2.16`
+- Timestamp: 2026-05-03 00:49 (UTC+7)
+- Commit: `5d2bc42`
+- Type: Maintenance/Automation
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.16`.
+- Feature areas touched: Release Automation (1).
+- Updated automation script `scripts/sync-release-log.mjs` to improve release/version synchronization reliability.
+
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-05-02 - Workflow Execution Logic Update 0.2.15
 
 - Version: `0.2.15`
@@ -15,12 +40,11 @@ The desktop app is packaged with Electron Builder as a Windows NSIS web installe
 ### Changes
 
 - Bumped release version to `0.2.15`.
-- Updated Git hook `.githooks/pre-commit` to enforce automatic version bump and sync policy.
-- Updated automation script `scripts/auto-commit-if-dirty.mjs` to improve release/version synchronization reliability.
-- Updated application logic in `src/features/profiles/profile-utils.ts`.
-- Updated application logic in `src/features/profiles/useProfiles.ts`.
-- Updated application logic in `src/features/workflows/useWorkflows.ts`.
-- Additional updated files related to this release: +6.
+- Extracted workflow execution by `workflow.action` into `src/features/workflows/workflow-executors.ts` so action logic is modular and easier to test.
+- Updated `src/App.tsx` to delegate runtime execution through the executor layer and support action-only workflows without fake URL values.
+- Added profile patch helper `updateProfile` in `src/api.ts` for workflow-driven profile updates.
+- Refined runtime layout in `src/styles.css`: Run History and Console now split 50/50, with smaller run-history status dots for denser display.
+- Expanded `set-screen-resolution-real` action payload compatibility to target GPM API field variations for screen-resolution updates.
 
 ### Verification
 
