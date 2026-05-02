@@ -35,6 +35,11 @@ function unique(values) {
   return [...new Set(values)];
 }
 
+function isProductFacingFile(file) {
+  const normalized = file.replace(/\\/g, "/");
+  return normalized.startsWith("src/") || normalized.startsWith("electron/");
+}
+
 function classifyFeatureArea(file) {
   const normalized = file.replace(/\\/g, "/");
   if (normalized.startsWith("src/features/workflows/")) return "Workflow";
@@ -62,6 +67,9 @@ function featureAreaSummary(files) {
 }
 
 function inferReleaseType(files) {
+  if (files.length === 0) {
+    return { type: "Maintenance/Internal" };
+  }
   const areas = new Set(files.map(classifyFeatureArea));
   if (areas.has("Workflow") || areas.has("Profiles") || areas.has("UI") || areas.has("App Core") || areas.has("Desktop Runtime")) {
     return { type: "Feature/Fix" };
@@ -73,6 +81,9 @@ function inferReleaseType(files) {
 }
 
 function inferReleaseHeadline(files) {
+  if (files.length === 0) {
+    return "Internal Maintenance";
+  }
   const normalized = files.map((file) => file.replace(/\\/g, "/"));
   const areas = featureAreaSummary(files).map((item) => item.split(" (")[0]);
 
@@ -186,16 +197,17 @@ function describeFileChange(file, changedSet) {
 
 const stagedFiles = readChangedFiles("git diff --cached --name-only");
 const changedFiles = stagedFiles.length ? stagedFiles : readChangedFiles("git diff --name-only");
-const meaningfulFiles = changedFiles.filter(
-  (file) => !["package.json", "tool.manifest.json", "RELEASE.md"].includes(file.replace(/\\/g, "/"))
-);
-const summarySourceFiles = meaningfulFiles.length > 0 ? meaningfulFiles : changedFiles;
+const meaningfulFiles = changedFiles.filter((file) => isProductFacingFile(file));
+const summarySourceFiles = meaningfulFiles;
 const filesForSummary = summarySourceFiles.slice(0, 5);
 const hiddenCount = Math.max(0, summarySourceFiles.length - filesForSummary.length);
 const releaseMeta = inferReleaseType(summarySourceFiles);
 const releaseHeadline = inferReleaseHeadline(summarySourceFiles);
 const changedSet = new Set(changedFiles.map((file) => file.replace(/\\/g, "/")));
-const changeLines = filesForSummary.map((file) => describeFileChange(file, changedSet));
+const changeLines =
+  filesForSummary.length > 0
+    ? filesForSummary.map((file) => describeFileChange(file, changedSet))
+    : ["- No end-user feature or UI behavior changes in this release (internal tooling/release maintenance only)."];
 const areaHighlights = featureAreaSummary(summarySourceFiles);
 
 const now = new Date();
@@ -231,7 +243,7 @@ const header = content.slice(0, firstEntryIndex);
 const entries = content.slice(firstEntryIndex);
 const headerWithSpacing = header.endsWith("\n\n") ? header : `${header}\n`;
 
-const newEntry = `## ${headingDate} - ${releaseHeadline} ${version}
+const newEntry = `## ${headingDate} - ${releaseHeadline}
 
 - Version: \`${version}\`
 - Timestamp: ${timestamp}
@@ -241,8 +253,7 @@ const newEntry = `## ${headingDate} - ${releaseHeadline} ${version}
 
 ### Changes
 
-- Bumped release version to \`${version}\`.
-- Feature areas touched: ${areaHighlights.join(", ")}.
+- ${areaHighlights.length > 0 ? `Feature areas touched: ${areaHighlights.join(", ")}.` : "Feature areas touched: none (internal-only update)."}
 ${changeLines.join("\n")}
 ${hiddenCount > 0 ? `- Additional updated files related to this release: +${hiddenCount}.` : ""}
 

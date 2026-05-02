@@ -4,7 +4,31 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
-## 2026-05-03 - Release Automation Policy Update 0.2.16
+## 2026-05-03 - Internal Maintenance
+
+- Version: `0.2.17`
+- Timestamp: 2026-05-03 00:53 (UTC+7)
+- Commit: `9a53b7b`
+- Type: Maintenance/Internal
+- Status: Verified
+
+### Changes
+
+- Feature areas touched: none (internal-only update).
+- No end-user feature or UI behavior changes in this release (internal tooling/release maintenance only).
+
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
+## 2026-05-03 - Internal Maintenance
 
 - Version: `0.2.16`
 - Timestamp: 2026-05-03 00:49 (UTC+7)
@@ -14,9 +38,7 @@ The desktop app is packaged with Electron Builder as a Windows NSIS web installe
 
 ### Changes
 
-- Bumped release version to `0.2.16`.
-- Feature areas touched: Release Automation (1).
-- Updated automation script `scripts/sync-release-log.mjs` to improve release/version synchronization reliability.
+- No end-user feature or UI behavior changes in this release (internal tooling/release maintenance only).
 
 
 ### Verification
