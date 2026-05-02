@@ -1,5 +1,6 @@
 import {
   Camera,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronFirst,
@@ -20,6 +21,7 @@ import {
   Github,
   Globe2,
   GraduationCap,
+  Hash,
   History,
   Image,
   Info,
@@ -35,13 +37,23 @@ import {
   ShieldCheck,
   Square,
   Terminal,
+  Type,
   Trash2,
   Undo2,
   Upload,
   X,
   XCircle
 } from "lucide-react";
-import { type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import releaseLogMarkdown from "../RELEASE.md?raw";
 import {
   checkHealth,
@@ -51,21 +63,23 @@ import {
   getGroups,
   getProfiles,
   getStoredBaseUrl,
-  runOpenUrlAutomation,
   setStoredBaseUrl,
   startProfile
 } from "./api";
 import { useProfiles } from "./features/profiles/useProfiles";
-import { profileId, profileName } from "./features/profiles/profile-utils";
+import { profileId, profileName, syncProfileRowState } from "./features/profiles/profile-utils";
 import { parseVersionLogEntries, type ParsedVersionLogEntry } from "./features/release-log/parseVersionLogEntries";
+import { executeWorkflowAction, type WorkflowExecutorAction } from "./features/workflows/workflow-executors";
 import { useWorkflows } from "./features/workflows/useWorkflows";
+import { GPM_CONSOLE_THEME_KEY, readStoredThemeMode, syncDocumentTheme } from "./theme";
 import type { GpmGroup, GpmProfile, ProfileRow, RunLog, ScriptStep, ScriptStepKind } from "./types";
+import { PortaledThemeSurface } from "./ui/PortaledThemeSurface";
 
 type View = "profiles" | "scripts" | "settings";
 type Theme = "dark" | "light";
 type WorkflowId = string;
 type WorkflowIconKey = "play" | "globe" | "camera" | "shield" | "education" | "layers";
-type WorkflowAction = "open-url" | "google-form-ag-appeal";
+type WorkflowAction = WorkflowExecutorAction;
 type WorkflowGroup = "Core" | "Account Check" | "Appeal";
 type WorkflowPlatform = string;
 type WorkflowConfig = {
@@ -98,9 +112,10 @@ type RunHistoryItem = {
 type DropdownOption = {
   value: string;
   label: string;
+  tone?: "neutral" | "all" | "group" | "platform" | "status" | "ready" | "opening" | "running" | "failed";
+  dotTone?: "blue" | "teal" | "violet" | "amber" | "rose" | "cyan" | "lime" | "indigo" | "orange" | "pink" | "emerald" | "sky";
 };
 
-const THEME_KEY = "gpm-console-theme";
 const WORKFLOWS_KEY = "gpm-console-workflows";
 const ACTIVE_WORKFLOW_KEY = "gpm-console-active-workflow";
 const PAGE_SIZE_OPTIONS = [100, 500, 1000, 5000];
@@ -212,6 +227,21 @@ const DEFAULT_WORKFLOWS: WorkflowConfig[] = [
     inspectMode: false,
     concurrency: 2,
     steps: workflowSteps("https://one.google.com/u/0/ai/activity", true)
+  },
+  {
+    id: "screen-resolution-real",
+    name: "Set Screen Resolution Real",
+    description: "Update profile hardware setting so screen resolution is Real.",
+    icon: "shield",
+    group: "Core",
+    platform: "GPM",
+    action: "set-screen-resolution-real",
+    targetUrl: "",
+    takeScreenshot: false,
+    closeWhenDone: false,
+    inspectMode: false,
+    concurrency: 5,
+    steps: [createStep("action", { name: "Set screen resolution Real", value: "set-screen-resolution-real", timeoutMs: 15000 })]
   },
   {
     id: "ag-appeal-form",
@@ -427,10 +457,6 @@ function workflowStepsForRun(workflow: WorkflowConfig, targetUrl: string) {
   });
 }
 
-function readStoredTheme(): Theme {
-  return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
-}
-
 function readStoredActiveWorkflow(): WorkflowId {
   const stored = localStorage.getItem(ACTIVE_WORKFLOW_KEY);
   return stored || "open-url";
@@ -493,6 +519,13 @@ function readStoredWorkflows(): WorkflowConfig[] {
 function statusLabel(status: ProfileRow["status"]) {
   if (status === "closed") return "Ready";
   return status;
+}
+
+function StatusMarker({ status }: { status: ProfileRow["status"] }) {
+  if (status === "closed") return <CheckCircle2 size={13} />;
+  if (status === "opening") return <RefreshCw size={13} />;
+  if (status === "running") return <Play size={13} />;
+  return <XCircle size={13} />;
 }
 
 function formatDuration(ms: number) {
@@ -597,6 +630,27 @@ function workflowDisplayId(id: WorkflowId) {
   return `WF${String((index >= 0 ? index + 1 : fallbackIndex) || 1).padStart(5, "0").slice(-5)}`;
 }
 
+function toneFromSeed(seed: string): NonNullable<DropdownOption["dotTone"]> {
+  const palette: NonNullable<DropdownOption["dotTone"]>[] = [
+    "blue",
+    "teal",
+    "violet",
+    "amber",
+    "rose",
+    "cyan",
+    "lime",
+    "indigo",
+    "orange",
+    "pink",
+    "emerald",
+    "sky"
+  ];
+  const hash = String(seed)
+    .split("")
+    .reduce((total, char) => total + char.charCodeAt(0), 0);
+  return palette[Math.abs(hash) % palette.length];
+}
+
 function workflowExportPayload(workflows: WorkflowConfig[]) {
   return workflows.map((workflow) => ({
     displayId: workflowDisplayId(workflow.id),
@@ -610,6 +664,7 @@ function MultiSelectDropdown({
   label,
   searchLabel,
   summaryLabel,
+  defaultTone = "all",
   onChange
 }: {
   values: string[];
@@ -617,6 +672,7 @@ function MultiSelectDropdown({
   label: string;
   searchLabel: string;
   summaryLabel?: string;
+  defaultTone?: DropdownOption["tone"];
   onChange: (values: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -626,6 +682,22 @@ function MultiSelectDropdown({
   const selectedLabels = options.filter((option) => selectedSet.has(option.value)).map((option) => option.label);
   const displayLabel =
     selectedLabels.length === 0 ? label : selectedLabels.length === 1 ? selectedLabels[0] : `${selectedLabels.length} ${summaryLabel || "selected"}`;
+  const selectedOption = options.find((option) => selectedSet.has(option.value));
+  const triggerTone = selectedSet.size === 0 ? defaultTone : selectedSet.size === 1 ? selectedOption?.tone : undefined;
+
+  function DropdownOptionMarker({ tone, dotTone }: { tone?: DropdownOption["tone"]; dotTone?: DropdownOption["dotTone"] }) {
+    if (dotTone) return <span className={`dropdown-option-dot ${dotTone}`} />;
+    if (!tone || tone === "neutral") return null;
+    if (tone === "all") return <Globe2 size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "group") return <Layers3 size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "platform") return <Globe2 size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "status") return <CheckCircle2 size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "ready") return <CheckCircle2 size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "opening") return <RefreshCw size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "running") return <Play size={13} className={`dropdown-option-icon ${tone}`} />;
+    if (tone === "failed") return <XCircle size={13} className={`dropdown-option-icon ${tone}`} />;
+    return null;
+  }
 
   function toggleValue(value: string) {
     if (!value) {
@@ -650,8 +722,11 @@ function MultiSelectDropdown({
       }}
     >
       <button type="button" className="smart-dropdown-trigger" onClick={() => setOpen((current) => !current)}>
-        <span>{displayLabel}</span>
-        <ChevronDown size={15} />
+        <span className={triggerTone ? `dropdown-trigger-label ${triggerTone}` : "dropdown-trigger-label"}>
+          <DropdownOptionMarker tone={triggerTone} dotTone={selectedSet.size === 1 ? selectedOption?.dotTone : undefined} />
+          {displayLabel}
+        </span>
+        <ChevronDown size={15} className="dropdown-chevron" />
       </button>
       {open && (
         <div className="smart-dropdown-menu">
@@ -661,8 +736,11 @@ function MultiSelectDropdown({
           </label>
           <div className="smart-dropdown-options">
             <button type="button" className={values.length === 0 ? "smart-dropdown-option active" : "smart-dropdown-option"} onMouseDown={(event) => event.preventDefault()} onClick={() => onChange([])}>
-              <span className="dropdown-checkbox">{values.length === 0 ? "?" : ""}</span>
-              <span>{label}</span>
+              <span className="dropdown-checkbox">{values.length === 0 ? <Check size={10} /> : null}</span>
+              <span className="dropdown-option-label">
+                <DropdownOptionMarker tone="all" />
+                All
+              </span>
             </button>
             {filteredOptions.map((option) => (
               <button
@@ -672,8 +750,11 @@ function MultiSelectDropdown({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => toggleValue(option.value)}
               >
-                <span className="dropdown-checkbox">{selectedSet.has(option.value) ? "?" : ""}</span>
-                <span>{option.label}</span>
+                <span className="dropdown-checkbox">{selectedSet.has(option.value) ? <Check size={10} /> : null}</span>
+                <span className={option.tone ? `dropdown-option-label ${option.tone}` : "dropdown-option-label"}>
+                  <DropdownOptionMarker tone={option.tone} dotTone={option.dotTone} />
+                  {option.label}
+                </span>
               </button>
             ))}
             {filteredOptions.length === 0 && <span className="dropdown-empty">No matches</span>}
@@ -720,7 +801,7 @@ function StandardTableHeader({
 
 export function App() {
   const [view, setView] = useState<View>("profiles");
-  const [theme, setTheme] = useState<Theme>(readStoredTheme);
+  const [theme, setTheme] = useState<Theme>(() => readStoredThemeMode());
   const [baseUrl, setBaseUrl] = useState(getStoredBaseUrl);
   const [apiStatus, setApiStatus] = useState<"checking" | "connected" | "offline">("checking");
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -743,20 +824,117 @@ export function App() {
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<WorkflowId[]>([readStoredActiveWorkflow()]);
   const [savePulse, setSavePulse] = useState(false);
   const [selectedScriptStepId, setSelectedScriptStepId] = useState<string>("");
-  const [lastSelectedWorkflowIndex, setLastSelectedWorkflowIndex] = useState<number | null>(null);
   const [automationRunning, setAutomationRunning] = useState(false);
-  const [pinnedHistoryId, setPinnedHistoryId] = useState<string | null>(null);
+  const [historyHoverId, setHistoryHoverId] = useState<string | null>(null);
+  const [historyPopoverCoords, setHistoryPopoverCoords] = useState({ top: 0, left: 0 });
+  const historyAnchorRef = useRef<HTMLElement | null>(null);
+  const historyPopoverPanelRef = useRef<HTMLDivElement | null>(null);
+  const historyHoverHideTimerRef = useRef<number | null>(null);
   const [pendingWorkflowImportId, setPendingWorkflowImportId] = useState<string>("");
   const [workflowUndoStack, setWorkflowUndoStack] = useState<WorkflowConfig[][]>([]);
   const [workflowRedoStack, setWorkflowRedoStack] = useState<WorkflowConfig[][]>([]);
   const workflowImportRef = useRef<HTMLInputElement>(null);
   const singleWorkflowImportRef = useRef<HTMLInputElement>(null);
 
+  const clearHistoryHoverTimer = useCallback(() => {
+    const t = historyHoverHideTimerRef.current;
+    if (t !== null) {
+      window.clearTimeout(t);
+      historyHoverHideTimerRef.current = null;
+    }
+  }, []);
+
+  const updateHistoryPopoverPosition = useCallback(() => {
+    const anchor = historyAnchorRef.current;
+    const panel = historyPopoverPanelRef.current;
+    if (!anchor || !panel || !historyHoverId) return;
+
+    const margin = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const r = anchor.getBoundingClientRect();
+
+    const pr = panel.getBoundingClientRect();
+    const pw = pr.width || panel.offsetWidth || 280;
+    const ph = pr.height || panel.offsetHeight || 160;
+
+    // Prefer RIGHT of dot, vertically centered on the anchor (stable next to sidebar).
+    let left = r.right + margin;
+    let top = r.top + r.height / 2 - ph / 2;
+
+    if (left + pw > vw - margin) {
+      left = r.left - pw - margin;
+    }
+    if (left < margin) {
+      left = margin;
+    }
+    if (left + pw > vw - margin) {
+      left = Math.max(margin, vw - margin - pw);
+    }
+
+    if (top + ph > vh - margin) {
+      top = vh - margin - ph;
+    }
+    if (top < margin) {
+      top = margin;
+    }
+
+    setHistoryPopoverCoords({ top, left });
+  }, [historyHoverId]);
+
+  useLayoutEffect(() => {
+    if (!historyHoverId) return;
+    updateHistoryPopoverPosition();
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      updateHistoryPopoverPosition();
+      raf2 = requestAnimationFrame(() => updateHistoryPopoverPosition());
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [historyHoverId, history, updateHistoryPopoverPosition]);
+
+  useEffect(() => {
+    if (!historyHoverId) return;
+    const sync = () => updateHistoryPopoverPosition();
+    window.addEventListener("scroll", sync, true);
+    window.addEventListener("resize", sync);
+    return () => {
+      window.removeEventListener("scroll", sync, true);
+      window.removeEventListener("resize", sync);
+    };
+  }, [historyHoverId, updateHistoryPopoverPosition]);
+
+  useEffect(() => () => clearHistoryHoverTimer(), [clearHistoryHoverTimer]);
+
+  const openHistoryPopover = useCallback(
+    (id: string, anchor: HTMLElement) => {
+      clearHistoryHoverTimer();
+      historyAnchorRef.current = anchor;
+      setHistoryHoverId(id);
+    },
+    [clearHistoryHoverTimer]
+  );
+
+  const scheduleCloseHistoryPopover = useCallback(() => {
+    clearHistoryHoverTimer();
+    const handle = window.setTimeout(() => {
+      setHistoryHoverId(null);
+      historyAnchorRef.current = null;
+      historyHoverHideTimerRef.current = null;
+    }, 140);
+    historyHoverHideTimerRef.current = handle;
+  }, [clearHistoryHoverTimer]);
+
   const {
     search,
     setSearch,
     selectedGroupIds,
     setSelectedGroupIds,
+    selectedStatuses,
+    setSelectedStatuses,
     currentPage,
     setCurrentPage,
     pageSize,
@@ -784,20 +962,52 @@ export function App() {
     workflowGroupOptions,
     workflowPlatformOptions,
     filteredWorkflows,
+    pagedFilteredWorkflows,
+    workflowTablePage,
+    setWorkflowTablePage,
+    workflowTablePageSize,
+    setWorkflowTablePageSize,
+    workflowTableTotalPages,
+    workflowTablePageStart,
+    workflowTablePageEnd,
     selectedWorkflowCount,
     visibleWorkflowSteps
   } = useWorkflows(workflowConfigs, selectedWorkflowIds, workflowDisplayId, workflowDisplayPlatform);
+  const workflowGroupDropdownOptions = useMemo(
+    () => workflowGroupOptions.map((option) => ({ ...option, tone: "group" as const, dotTone: toneFromSeed(`group:${option.value}`) })),
+    [workflowGroupOptions]
+  );
+  const workflowPlatformDropdownOptions = useMemo(
+    () =>
+      workflowPlatformOptions.map((option) => ({ ...option, tone: "platform" as const, dotTone: toneFromSeed(`platform:${option.value}`) })),
+    [workflowPlatformOptions]
+  );
   const runWorkflowConfigs = selectedWorkflowConfigs.length > 0 ? selectedWorkflowConfigs : [activeWorkflowConfig];
   const runWorkflowLabel = runWorkflowConfigs.length === 1 ? runWorkflowConfigs[0].name : `${runWorkflowConfigs.length} workflows`;
   const selectedScriptStep = activeWorkflowConfig.steps.find((step) => step.id === selectedScriptStepId) || activeWorkflowConfig.steps[0];
   const profileGroupOptions = useMemo(
-    () => groups.map((group) => ({ value: String(group.id), label: groupName(group) })),
+    () =>
+      groups.map((group) => ({
+        value: String(group.id),
+        label: groupName(group),
+        tone: "group" as const,
+        dotTone: toneFromSeed(`profile-group:${group.id}`)
+      })),
     [groups]
+  );
+  const profileStatusOptions = useMemo(
+    () => [
+      { value: "closed", label: "Ready", tone: "ready" as const },
+      { value: "opening", label: "Opening", tone: "opening" as const },
+      { value: "running", label: "Running", tone: "running" as const },
+      { value: "failed", label: "Failed", tone: "failed" as const }
+    ],
+    []
   );
   useEffect(() => {
     setCurrentPage(1);
     setLastSelectedIndex(null);
-  }, [pageSize, search, selectedGroupIds]);
+  }, [pageSize, search, selectedGroupIds, selectedStatuses]);
 
   useEffect(() => {
     localStorage.setItem(ACTIVE_WORKFLOW_KEY, activeWorkflow);
@@ -816,12 +1026,16 @@ export function App() {
 
   useEffect(() => {
     function closeHistoryPopover(event: KeyboardEvent) {
-      if (event.key === "Escape") setPinnedHistoryId(null);
+      if (event.key === "Escape") {
+        clearHistoryHoverTimer();
+        setHistoryHoverId(null);
+        historyAnchorRef.current = null;
+      }
     }
 
     window.addEventListener("keydown", closeHistoryPopover);
     return () => window.removeEventListener("keydown", closeHistoryPopover);
-  }, []);
+  }, [clearHistoryHoverTimer]);
 
   useEffect(() => {
     function handleProfileShortcuts(event: KeyboardEvent) {
@@ -840,46 +1054,86 @@ export function App() {
     return () => window.removeEventListener("keydown", handleProfileShortcuts);
   }, [filteredProfiles, view]);
 
-  async function refreshAll() {
-    setBusy(true);
-    setError("");
+  function applyProfilesPayload(
+    health: Awaited<ReturnType<typeof checkHealth>>,
+    nextGroups: GpmGroup[],
+    nextProfiles: GpmProfile[]
+  ) {
+    setApiStatus(health.ok === false ? "offline" : "connected");
+    setGroups(nextGroups);
+    setProfiles((current) => {
+      const currentMap = new Map(
+        current.map((item) => [
+          profileId(item),
+          { status: item.status, lastMessage: item.lastMessage } as Pick<ProfileRow, "status" | "lastMessage">
+        ])
+      );
+      return nextProfiles.map((profile) => {
+        const id = profileId(profile);
+        const previous = currentMap.get(id);
+        const merged = syncProfileRowState(profile, previous);
+        return {
+          ...profile,
+          status: merged.status,
+          lastMessage: merged.lastMessage
+        };
+      });
+    });
+  }
+
+  const syncProfilesFromApi = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setBusy(true);
+      setError("");
+    }
     try {
       const [health, nextGroups, nextProfiles] = await Promise.all([
         checkHealth(baseUrl),
         getGroups(baseUrl),
         getProfiles(baseUrl, {})
       ]);
-      setApiStatus(health.ok === false ? "offline" : "connected");
-      setGroups(nextGroups);
-      setProfiles((current) => {
-        const currentMap = new Map(
-          current.map((item) => [profileId(item), { status: item.status, lastMessage: item.lastMessage }])
-        );
-        return nextProfiles.map((profile) => {
-          const currentState = currentMap.get(profileId(profile));
-          return {
-            ...profile,
-            status: currentState?.status || "closed",
-            lastMessage: currentState?.lastMessage
-          };
-        });
-      });
+      applyProfilesPayload(health, nextGroups, nextProfiles);
     } catch (refreshError) {
       setApiStatus("offline");
-      setError(refreshError instanceof Error ? refreshError.message : "Unable to load GPM data.");
+      if (!silent) {
+        setError(refreshError instanceof Error ? refreshError.message : "Unable to load GPM data.");
+      }
     } finally {
-      setBusy(false);
+      if (!silent) setBusy(false);
     }
+  }, [baseUrl]);
+
+  async function refreshAll() {
+    await syncProfilesFromApi({ silent: false });
   }
 
   useEffect(() => {
     refreshAll();
   }, []);
 
+  const profileStatusPoll = useMemo(
+    () => profiles.some((p) => p.status === "running" || p.status === "opening"),
+    [profiles]
+  );
+
+  useEffect(() => {
+    if (apiStatus !== "connected" || !profileStatusPoll) return;
+    const tick = () => {
+      void syncProfilesFromApi({ silent: true });
+    };
+    const handle = window.setInterval(tick, 5000);
+    return () => window.clearInterval(handle);
+  }, [apiStatus, profileStatusPoll, syncProfilesFromApi]);
+
   function setThemeMode(next: Theme) {
-    localStorage.setItem(THEME_KEY, next);
+    localStorage.setItem(GPM_CONSOLE_THEME_KEY, next);
     setTheme(next);
   }
+
+  useEffect(() => {
+    syncDocumentTheme(theme);
+  }, [theme]);
 
   function addLog(level: RunLog["level"], profileNameValue: string, message: string) {
     setLogs((items) =>
@@ -1253,29 +1507,9 @@ export function App() {
     setSelectedWorkflowIds([workflowId]);
   }
 
-  function selectScriptWorkflow(workflowId: WorkflowId, index: number, event: MouseEvent<HTMLDivElement>) {
+  function selectScriptWorkflow(workflowId: WorkflowId) {
     setActiveWorkflow(workflowId);
-
-    if (event.shiftKey && lastSelectedWorkflowIndex !== null) {
-      const start = Math.min(lastSelectedWorkflowIndex, index);
-      const end = Math.max(lastSelectedWorkflowIndex, index);
-      setSelectedWorkflowIds(filteredWorkflows.slice(start, end + 1).map((workflow) => workflow.id));
-      return;
-    }
-
-    if (event.ctrlKey || event.metaKey) {
-      setSelectedWorkflowIds((current) => {
-        const next = new Set(current);
-        if (next.has(workflowId)) next.delete(workflowId);
-        else next.add(workflowId);
-        return Array.from(next);
-      });
-      setLastSelectedWorkflowIndex(index);
-      return;
-    }
-
     setSelectedWorkflowIds([workflowId]);
-    setLastSelectedWorkflowIndex(index);
   }
 
   async function openOne(profile: ProfileRow) {
@@ -1291,6 +1525,8 @@ export function App() {
       const message = openError instanceof Error ? openError.message : "Failed to open profile";
       updateProfileStatus(id, "failed", message);
       addLog("error", profileName(profile), message);
+    } finally {
+      window.setTimeout(() => void syncProfilesFromApi({ silent: true }), 400);
     }
   }
 
@@ -1305,6 +1541,8 @@ export function App() {
       const message = closeError instanceof Error ? closeError.message : "Failed to close profile";
       updateProfileStatus(id, "failed", message);
       addLog("error", profileName(profile), message);
+    } finally {
+      window.setTimeout(() => void syncProfilesFromApi({ silent: true }), 400);
     }
   }
 
@@ -1345,17 +1583,18 @@ export function App() {
     }
   }
 
-  async function runProfileAutomation(profile: ProfileRow, workflow: WorkflowConfig, url: string) {
+  async function runProfileAutomation(profile: ProfileRow, workflow: WorkflowConfig, url?: string) {
     const id = profileId(profile);
     const startedAt = Date.now();
     const historyId = crypto.randomUUID();
+    const historyTarget = url || `action:${workflow.action}`;
     updateProfileStatus(id, "opening", "Opening profile and connecting CDP");
-    addLog("info", profileName(profile), `${workflow.name} started: ${url}`);
+    addLog("info", profileName(profile), `${workflow.name} started${url ? `: ${url}` : ""}`);
     addHistory({
       id: historyId,
       profileName: profileName(profile),
       workflowName: workflow.name,
-      targetUrl: url,
+      targetUrl: historyTarget,
       status: "running",
       startedAt,
       durationMs: 0,
@@ -1363,23 +1602,20 @@ export function App() {
     });
 
     try {
-      const result = await runOpenUrlAutomation(baseUrl, profile, {
+      const result = await executeWorkflowAction({
+        action: workflow.action,
+        baseUrl,
+        profile,
         targetUrl: url,
-        screenshot: workflow.takeScreenshot,
+        takeScreenshot: workflow.takeScreenshot,
         closeWhenDone: workflow.closeWhenDone,
-        workflowAction: workflow.action,
         inspectMode: workflow.inspectMode,
-        steps: workflowStepsForRun(workflow, url)
+        steps: workflowStepsForRun(workflow, url || "")
       });
-
       result.logs.forEach((log) => addLog(log.level, profileName(profile), log.message));
 
       if (result.ok) {
-        updateProfileStatus(
-          id,
-          workflow.closeWhenDone ? "closed" : "running",
-          result.screenshotPath ? `Screenshot saved: ${result.screenshotPath}` : "Automation completed"
-        );
+        updateProfileStatus(id, result.status, result.message);
         updateHistory(historyId, {
           status: "success",
           durationMs: Date.now() - startedAt,
@@ -1387,12 +1623,12 @@ export function App() {
           screenshotPath: result.screenshotPath
         });
       } else {
-        updateProfileStatus(id, "failed", result.error || "Automation failed");
+        updateProfileStatus(id, "failed", result.error || result.message || "Automation failed");
         updateHistory(historyId, {
           status: "failed",
           durationMs: Date.now() - startedAt,
           finishedAt: now(),
-          error: result.error || "Automation failed"
+          error: result.error || result.message || "Automation failed"
         });
       }
     } catch (automationError) {
@@ -1405,6 +1641,8 @@ export function App() {
         finishedAt: now(),
         error: message
       });
+    } finally {
+      window.setTimeout(() => void syncProfilesFromApi({ silent: true }), 800);
     }
   }
 
@@ -1416,17 +1654,20 @@ export function App() {
 
     try {
       for (const workflow of runWorkflowConfigs) {
-        const url = normalizeUrl(workflow.targetUrl);
-        if (!url) {
-          addLog("error", workflow.name, "Automation URL is empty.");
-          continue;
-        }
+        const requiresUrl = workflow.action !== "set-screen-resolution-real";
+        const url = requiresUrl ? normalizeUrl(workflow.targetUrl) : undefined;
+        if (requiresUrl) {
+          if (!url) {
+            addLog("error", workflow.name, "Automation URL is empty.");
+            continue;
+          }
 
-        try {
-          new URL(url);
-        } catch {
-          addLog("error", workflow.name, "Automation URL is invalid.");
-          continue;
+          try {
+            new URL(url);
+          } catch {
+            addLog("error", workflow.name, "Automation URL is invalid.");
+            continue;
+          }
         }
 
         addLog("info", workflow.name, `Workflow queue started for ${selectedProfiles.length} profiles`);
@@ -1466,7 +1707,7 @@ export function App() {
   );
 
   return (
-    <div className={`shell theme-${theme}`}>
+    <div className="shell">
       <aside className="sidebar">
         <div className="brand-mark">G</div>
         <nav>
@@ -1536,7 +1777,7 @@ export function App() {
                 title="Profile"
                 summary={`${filteredProfiles.length} of ${totalProfiles}`}
                 statsClassName="metrics"
-                filtersClassName="queue-filters profile-filters"
+                filtersClassName="profile-filters"
                 actionsClassName="profile-table-header-actions"
                 stats={
                   <>
@@ -1587,10 +1828,20 @@ export function App() {
                     <MultiSelectDropdown
                       values={selectedGroupIds}
                       options={profileGroupOptions}
-                      label="All groups"
+                      label="Group"
                       searchLabel="Search groups..."
                       summaryLabel="groups"
+                      defaultTone="group"
                       onChange={setSelectedGroupIds}
+                    />
+                    <MultiSelectDropdown
+                      values={selectedStatuses}
+                      options={profileStatusOptions}
+                      label="Status"
+                      searchLabel="Search statuses..."
+                      summaryLabel="statuses"
+                      defaultTone="status"
+                      onChange={(values) => setSelectedStatuses(values as ProfileRow["status"][])}
                     />
                   </>
                 }
@@ -1685,7 +1936,10 @@ export function App() {
                           </td>
                           <td>{profile.group_name || profile.group_id || "-"}</td>
                           <td>
-                            <span className={`status ${profile.status}`}>{statusLabel(profile.status)}</span>
+                            <span className={`status ${profile.status}`}>
+                              <StatusMarker status={profile.status} />
+                              {statusLabel(profile.status)}
+                            </span>
                           </td>
                           <td>{profile.raw_proxy || profile.proxy || "Local IP"}</td>
                           <td className="note-cell queue-message">{profile.lastMessage || profile.note || "-"}</td>
@@ -1773,18 +2027,20 @@ export function App() {
                     </label>
                     <MultiSelectDropdown
                       values={workflowGroupFilters}
-                      options={workflowGroupOptions}
-                      label="All groups"
+                      options={workflowGroupDropdownOptions}
+                      label="Group"
                       searchLabel="Search groups..."
                       summaryLabel="groups"
+                      defaultTone="group"
                       onChange={setWorkflowGroupFilters}
                     />
                     <MultiSelectDropdown
                       values={workflowPlatformFilters}
-                      options={workflowPlatformOptions}
-                      label="All platforms"
+                      options={workflowPlatformDropdownOptions}
+                      label="Platform"
                       searchLabel="Search platforms..."
                       summaryLabel="platforms"
+                      defaultTone="platform"
                       onChange={setWorkflowPlatformFilters}
                     />
                   </div>
@@ -1817,7 +2073,7 @@ export function App() {
                           }}
                         >
                           <span className={`workflow-icon workflow-brand-icon ${workflowPlatformTone(displayPlatform)}`}>
-                            {platformSvgUrl ? <img src={platformSvgUrl} alt="" /> : <WorkflowIcon size={15} />}
+                            {platformSvgUrl ? <img src={platformSvgUrl} alt="" /> : <WorkflowIcon size={13} />}
                           </span>
                           <span className="workflow-id">{workflowDisplayId(workflow.id)}</span>
                           <strong>{workflow.name}</strong>
@@ -1834,7 +2090,7 @@ export function App() {
                               setShowWorkflowSettings(true);
                             }}
                           >
-                            <Settings size={15} />
+                            <Settings size={14} />
                           </button>
                         </div>
                       );
@@ -1846,7 +2102,13 @@ export function App() {
                 <button
                   className="primary full"
                   onClick={runAutomationQueue}
-                  disabled={!selectedProfiles.length || automationRunning || !runWorkflowConfigs.some((workflow) => workflow.targetUrl.trim())}
+                  disabled={
+                    !selectedProfiles.length ||
+                    automationRunning ||
+                    !runWorkflowConfigs.some(
+                      (workflow) => workflow.action === "set-screen-resolution-real" || workflow.targetUrl.trim()
+                    )
+                  }
                 >
                   <ActiveWorkflowIcon size={16} />
                   {automationRunning ? "Running..." : `Run ${runWorkflowLabel}`}
@@ -1870,58 +2132,32 @@ export function App() {
                   <button
                     className="ghost compact"
                     onClick={() => {
+                      clearHistoryHoverTimer();
                       setHistory([]);
-                      setPinnedHistoryId(null);
+                      setHistoryHoverId(null);
+                      historyAnchorRef.current = null;
                     }}
                   >
                     Clear
                   </button>
                 </div>
-                <div className="history-dot-grid" onMouseLeave={() => !pinnedHistoryId && setPinnedHistoryId(null)}>
+                <div className="history-dot-grid">
                   {history.map((item) => (
                     <button
+                      type="button"
                       className={`history-dot ${item.status}`}
                       key={item.id}
-                      title={`${item.profileName} - ${item.status}`}
-                      onMouseEnter={() => setPinnedHistoryId(item.id)}
-                      onFocus={() => setPinnedHistoryId(item.id)}
-                      onClick={() => setPinnedHistoryId((current) => (current === item.id ? null : item.id))}
+                      aria-label={`${item.profileName} — ${item.status}`}
+                      onMouseEnter={(event) => openHistoryPopover(item.id, event.currentTarget)}
+                      onMouseLeave={() => scheduleCloseHistoryPopover()}
+                      onFocus={(event) => openHistoryPopover(item.id, event.currentTarget)}
+                      onBlur={() => scheduleCloseHistoryPopover()}
                     >
                       <span />
                     </button>
                   ))}
                   {history.length === 0 && <p className="muted">No completed runs yet.</p>}
                 </div>
-                {pinnedHistoryId && (
-                  <div className="history-popover" role="dialog">
-                    {history
-                      .filter((item) => item.id === pinnedHistoryId)
-                      .map((item) => (
-                        <div key={item.id}>
-                          <div className="history-popover-title">
-                            <strong>{item.profileName}</strong>
-                            <span className={`history-status ${item.status}`}>{item.status}</span>
-                          </div>
-                          <p>{item.workflowName}</p>
-                          <p>{item.targetUrl}</p>
-                          <div className="history-popover-meta">
-                            <span>
-                              <Clock3 size={12} />
-                              {item.status === "running" ? "Running" : formatDuration(item.durationMs)}
-                            </span>
-                            <span>{item.finishedAt}</span>
-                          </div>
-                          {item.screenshotPath && (
-                            <p className="history-path">
-                              <Image size={12} />
-                              {item.screenshotPath}
-                            </p>
-                          )}
-                          {item.error && <p className="history-error">{item.error}</p>}
-                        </div>
-                      ))}
-                  </div>
-                )}
               </section>
 
               <section className="runner-card console-card">
@@ -2006,18 +2242,20 @@ export function App() {
                     </label>
                     <MultiSelectDropdown
                       values={workflowGroupFilters}
-                      options={workflowGroupOptions}
-                      label="All groups"
+                      options={workflowGroupDropdownOptions}
+                      label="Group"
                       searchLabel="Search groups..."
                       summaryLabel="groups"
+                      defaultTone="group"
                       onChange={setWorkflowGroupFilters}
                     />
                     <MultiSelectDropdown
                       values={workflowPlatformFilters}
-                      options={workflowPlatformOptions}
-                      label="All platforms"
+                      options={workflowPlatformDropdownOptions}
+                      label="Platform"
                       searchLabel="Search platforms..."
                       summaryLabel="platforms"
+                      defaultTone="platform"
                       onChange={setWorkflowPlatformFilters}
                     />
                   </>
@@ -2051,75 +2289,223 @@ export function App() {
                   </>
                 }
               />
-              <div className="script-workflow-header">
-                <span>ID</span>
-                <span>Name</span>
-                <span>Platform</span>
-                <span>URL</span>
-                <span>Actions</span>
-              </div>
-              <div className="script-workflow-list">
-                {filteredWorkflows.map((workflow, index) => {
-                  const displayPlatform = workflowDisplayPlatform(workflow);
-                  const WorkflowIcon = workflowPlatformIconFor(displayPlatform);
-                  const platformSvgUrl = workflowPlatformSvgUrl(displayPlatform);
-                  return (
-                    <div
-                      className="script-workflow"
-                      key={workflow.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(event) => {
-                        selectScriptWorkflow(workflow.id, index, event);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setActiveWorkflow(workflow.id);
-                          setSelectedWorkflowIds([workflow.id]);
-                        }
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="workflow-copy-id"
-                        title={`Copy ${workflowDisplayId(workflow.id)}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          copyWorkflowId(workflow.id);
-                        }}
-                      >
-                        {workflowDisplayId(workflow.id)}
+              <div className="script-workflows-table-region">
+                <div className="job-list table-panel native-table row-select-table">
+                  <div className="table-head-wrap">
+                    <table className="queue-table profile-table workflow-script-table profile-table-head" aria-hidden="true">
+                      <thead>
+                        <tr>
+                          <th>
+                            <span className="table-col-head table-col-wf-id">
+                              <Hash size={13} />
+                              ID
+                            </span>
+                          </th>
+                          <th>
+                            <span className="table-col-head table-col-wf-name">
+                              <Type size={13} />
+                              Name
+                            </span>
+                          </th>
+                          <th>
+                            <span className="table-col-head table-col-wf-platform">
+                              <Layers3 size={13} />
+                              Platform
+                            </span>
+                          </th>
+                          <th>
+                            <span className="table-col-head table-col-wf-url">
+                              <Globe2 size={13} />
+                              URL
+                            </span>
+                          </th>
+                          <th className="action-col">
+                            <span className="table-col-head table-col-actions">
+                              <Settings size={13} />
+                              Actions
+                            </span>
+                          </th>
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+                  <div className="table-wrap table-scroll">
+                    <table className="queue-table profile-table workflow-script-table">
+                      <tbody>
+                        {pagedFilteredWorkflows.map((workflow) => {
+                          const displayPlatform = workflowDisplayPlatform(workflow);
+                          const WorkflowIcon = workflowPlatformIconFor(displayPlatform);
+                          const platformSvgUrl = workflowPlatformSvgUrl(displayPlatform);
+                          const rowActive = activeWorkflow === workflow.id;
+                          return (
+                            <tr
+                              key={workflow.id}
+                              className={rowActive ? "queue-row selected-row active" : "queue-row"}
+                              tabIndex={0}
+                              onClick={() => selectScriptWorkflow(workflow.id)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  selectScriptWorkflow(workflow.id);
+                                }
+                              }}
+                            >
+                              <td>
+                                <button
+                                  type="button"
+                                  className="workflow-copy-id"
+                                  title={`Copy ${workflowDisplayId(workflow.id)}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    copyWorkflowId(workflow.id);
+                                  }}
+                                >
+                                  {workflowDisplayId(workflow.id)}
+                                </button>
+                              </td>
+                              <td>
+                                <strong className="queue-channel-name workflow-row-name">{workflow.name}</strong>
+                              </td>
+                              <td>
+                                <span className="workflow-platform-cell workflow-table-platform">
+                                  <span className={`workflow-icon workflow-brand-icon ${workflowPlatformTone(displayPlatform)}`}>
+                                    {platformSvgUrl ? <img src={platformSvgUrl} alt="" /> : <WorkflowIcon size={15} />}
+                                  </span>
+                                  <span>{displayPlatform}</span>
+                                </span>
+                              </td>
+                              <td className="note-cell queue-message workflow-row-url-cell">
+                                <span className="workflow-row-url">{workflow.targetUrl || "-"}</span>
+                              </td>
+                              <td className="row-actions queue-actions workflow-script-actions">
+                                <button
+                                  className="table-action-btn table-action-run"
+                                  type="button"
+                                  title="Run script from Profiles"
+                                  aria-label="Run script from Profiles"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openProfilesForWorkflow(workflow.id);
+                                  }}
+                                >
+                                  <Play size={12} />
+                                </button>
+                                <button
+                                  className="table-action-btn table-action-export"
+                                  type="button"
+                                  title="Export workflow"
+                                  aria-label="Export workflow"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    exportWorkflow(workflow);
+                                  }}
+                                >
+                                  <Download size={12} />
+                                </button>
+                                <button
+                                  className="table-action-btn table-action-import"
+                                  type="button"
+                                  title="Import into workflow"
+                                  aria-label="Import into workflow"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    startWorkflowImport(workflow.id);
+                                  }}
+                                >
+                                  <Upload size={12} />
+                                </button>
+                                <button
+                                  className="table-action-btn table-action-copy"
+                                  type="button"
+                                  title="Copy workflow"
+                                  aria-label="Copy workflow"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    copyWorkflow(workflow);
+                                  }}
+                                >
+                                  <Copy size={12} />
+                                </button>
+                                <button
+                                  className="table-action-btn table-action-reset"
+                                  type="button"
+                                  title="Reset workflow"
+                                  aria-label="Reset workflow"
+                                  disabled={!DEFAULT_WORKFLOWS.some((item) => item.id === workflow.id)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    resetWorkflow(workflow.id);
+                                  }}
+                                >
+                                  <RotateCcw size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredWorkflows.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="empty">
+                              No workflows match the current filters.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="pagination-footer">
+                    <div className="pagination-actions">
+                      <button className="page-button" onClick={() => setWorkflowTablePage(1)} disabled={workflowTablePage === 1} title="First page" aria-label="First page">
+                        <ChevronFirst size={15} />
                       </button>
-                      <span className="workflow-row-name">{workflow.name}</span>
-                      <span className="workflow-platform-cell">
-                        <span className={`workflow-icon workflow-brand-icon ${workflowPlatformTone(displayPlatform)}`}>
-                          {platformSvgUrl ? <img src={platformSvgUrl} alt="" /> : <WorkflowIcon size={15} />}
-                        </span>
-                        <span>{displayPlatform}</span>
+                      <button
+                        className="page-button"
+                        onClick={() => setWorkflowTablePage((page) => Math.max(1, page - 1))}
+                        disabled={workflowTablePage === 1}
+                        title="Previous page"
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+                      <span>
+                        {workflowTablePage} / {workflowTableTotalPages}
                       </span>
-                      <span className="workflow-row-url">{workflow.targetUrl || "-"}</span>
-                      <span className="table-action-icons">
-                        <button className="table-action-btn table-action-run" type="button" title="Run script from Profiles" onClick={(event) => { event.stopPropagation(); openProfilesForWorkflow(workflow.id); }}>
-                          <Play size={13} />
-                        </button>
-                        <button className="table-action-btn table-action-export" type="button" title="Export workflow" onClick={(event) => { event.stopPropagation(); exportWorkflow(workflow); }}>
-                          <Download size={13} />
-                        </button>
-                        <button className="table-action-btn table-action-import" type="button" title="Import into workflow" onClick={(event) => { event.stopPropagation(); startWorkflowImport(workflow.id); }}>
-                          <Upload size={13} />
-                        </button>
-                        <button className="table-action-btn table-action-copy" type="button" title="Copy workflow" onClick={(event) => { event.stopPropagation(); copyWorkflow(workflow); }}>
-                          <Copy size={13} />
-                        </button>
-                        <button className="table-action-btn table-action-reset" type="button" title="Reset workflow" disabled={!DEFAULT_WORKFLOWS.some((item) => item.id === workflow.id)} onClick={(event) => { event.stopPropagation(); resetWorkflow(workflow.id); }}>
-                          <RotateCcw size={13} />
-                        </button>
-                      </span>
+                      <button
+                        className="page-button"
+                        onClick={() => setWorkflowTablePage((page) => Math.min(workflowTableTotalPages, page + 1))}
+                        disabled={workflowTablePage === workflowTableTotalPages}
+                        title="Next page"
+                        aria-label="Next page"
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+                      <button
+                        className="page-button"
+                        onClick={() => setWorkflowTablePage(workflowTableTotalPages)}
+                        disabled={workflowTablePage === workflowTableTotalPages}
+                        title="Last page"
+                        aria-label="Last page"
+                      >
+                        <ChevronLast size={15} />
+                      </button>
                     </div>
-                  );
-                })}
-                {filteredWorkflows.length === 0 && <p className="muted">No workflows match the current filters.</p>}
+                    <div className="pagination-meta">
+                      <span>
+                        {filteredWorkflows.length === 0 ? "0" : workflowTablePageStart + 1}-{workflowTablePageEnd} of {filteredWorkflows.length} workflows
+                      </span>
+                      <label>
+                        Workflows per page
+                        <select value={workflowTablePageSize} onChange={(event) => setWorkflowTablePageSize(Number(event.target.value))}>
+                          {PAGE_SIZE_OPTIONS.map((size) => (
+                            <option key={size} value={size}>
+                              {size}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
             </aside>
 
@@ -2474,12 +2860,14 @@ export function App() {
               >
                 <option value="open-url">Open URL</option>
                 <option value="google-form-ag-appeal">Google Form AG Appeal</option>
+                <option value="set-screen-resolution-real">Set Screen Resolution Real</option>
               </select>
               <label>Target URL</label>
               <input
                 value={activeWorkflowConfig.targetUrl}
                 onChange={(event) => updateActiveWorkflowConfig({ targetUrl: event.target.value })}
                 placeholder="https://example.com"
+                disabled={activeWorkflowConfig.action === "set-screen-resolution-real"}
                 autoFocus
               />
               <div className="settings-grid">
@@ -2531,6 +2919,54 @@ export function App() {
           </div>
         )}
 
+        {historyHoverId && (
+          <PortaledThemeSurface>
+            <div
+              ref={historyPopoverPanelRef}
+              className="history-popover history-popover-portal"
+              role="tooltip"
+              aria-label="Run history detail"
+              style={{
+                position: "fixed",
+                top: historyPopoverCoords.top,
+                left: historyPopoverCoords.left,
+                zIndex: 2147483000,
+                isolation: "isolate"
+              }}
+              onMouseEnter={clearHistoryHoverTimer}
+              onMouseLeave={scheduleCloseHistoryPopover}
+            >
+              {history
+                .filter((item) => item.id === historyHoverId)
+                .map((item) => (
+                  <div key={item.id}>
+                    <div className="history-popover-title">
+                      <strong>{item.profileName}</strong>
+                      <span className={`history-status ${item.status}`}>{item.status}</span>
+                    </div>
+                    <p>{item.workflowName}</p>
+                    <p>{item.targetUrl}</p>
+                    <div className="history-popover-meta">
+                      <div className={`history-popover-timing history-popover-timing--${item.status}`}>
+                        <Clock3 size={12} strokeWidth={2} className="history-meta-clock" aria-hidden />
+                        <span className="history-duration-value">
+                          {item.status === "running" ? "Running" : formatDuration(item.durationMs)}
+                        </span>
+                      </div>
+                      <span className="history-finished-at">{item.finishedAt}</span>
+                    </div>
+                    {item.screenshotPath && (
+                      <p className="history-path">
+                        <Image size={12} />
+                        {item.screenshotPath}
+                      </p>
+                    )}
+                    {item.error && <p className="history-error">{item.error}</p>}
+                  </div>
+                ))}
+            </div>
+          </PortaledThemeSurface>
+        )}
       </main>
     </div>
   );

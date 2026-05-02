@@ -96,6 +96,10 @@ export async function createProfile(baseUrl: string, profile: Record<string, unk
   return window.gpm.request<ApiEnvelope<GpmProfile>>("gpm:createProfile", { baseUrl, profile });
 }
 
+export async function updateProfile(baseUrl: string, id: string | number, patch: Record<string, unknown>) {
+  return window.gpm.request<ApiEnvelope>("gpm:updateProfile", { baseUrl, id, patch });
+}
+
 export async function deleteProfile(baseUrl: string, id: string | number) {
   return window.gpm.request<ApiEnvelope>("gpm:deleteProfile", { baseUrl, id, mode: 1 });
 }
