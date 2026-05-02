@@ -1,6 +1,6 @@
 {
   "name": "gpm-automation-console",
-  "version": "0.2.5",
+  "version": "0.2.15",
   "private": true,
   "description": "Desktop console for managing and automating GPM Login profiles.",
   "author": "GPM Automation Console",
@@ -32,7 +32,6 @@
     "release:stamp": "pnpm sync:bump && pnpm sync:meta && pnpm sync:releaselog && pnpm check:version-sync",
     "release:code-only-stamp": "node scripts/release-stamp-if-code-change.mjs",
     "release:auto": "pnpm release:code-only-stamp",
-    "commit:auto": "node scripts/auto-commit-if-dirty.mjs",
     "release:tag-local": "node scripts/tag-local-release.mjs",
     "rollback:list": "git tag --list \"v*\" --sort=-v:refname",
     "rollback:restore": "node scripts/rollback-to-tag.mjs",

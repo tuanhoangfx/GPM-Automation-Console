@@ -4,6 +4,259 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-05-02 - Workflow Execution Logic Update 0.2.15
+
+- Version: `0.2.15`
+- Timestamp: 2026-05-02 23:42 (UTC+7)
+- Commit: `4ac592e`
+- Type: Feature/Fix
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.15`.
+- Updated Git hook `.githooks/pre-commit` to enforce automatic version bump and sync policy.
+- Updated automation script `scripts/auto-commit-if-dirty.mjs` to improve release/version synchronization reliability.
+- Updated application logic in `src/features/profiles/profile-utils.ts`.
+- Updated application logic in `src/features/profiles/useProfiles.ts`.
+- Updated application logic in `src/features/workflows/useWorkflows.ts`.
+- Additional updated files related to this release: +6.
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
+## 2026-05-02 - Expanded Dynamic Dot Palette 0.2.14
+
+- Version: `0.2.14`
+- Timestamp: 2026-05-02 01:18 (UTC+7)
+- Commit: pending
+- Type: UI/Visual
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.14`.
+- Expanded dynamic dropdown dot palette from 6 colors to 12 colors for better visual diversity.
+- Switched dot assignment strategy from index-based to seed-hash mapping so values keep stable color identity across renders while reducing repetitive color collisions in long lists.
+- Synced the same expanded dot palette into workspace standards baseline CSS.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-02 - Dot Markers for Dynamic Dropdown Data 0.2.13
+
+- Version: `0.2.13`
+- Timestamp: 2026-05-02 01:16 (UTC+7)
+- Commit: pending
+- Type: UI/Consistency
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.13`.
+- Added colored dot markers for dynamic dropdown values where semantic icons are not suitable:
+  - applied to runtime Group and Platform option values across Profile/Workflow/Scripts filter dropdowns
+  - preserved semantic icons for stable meanings (`All`, `Status`, `Ready`, `Opening`, `Running`, `Failed`).
+- Updated workspace standards to include the dot-marker fallback rule and canonical dot marker style tokens.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - Dropdown Standard Push to Rules + Full Rollout 0.2.12
+
+- Version: `0.2.12`
+- Timestamp: 2026-05-01 20:26 (UTC+7)
+- Commit: pending
+- Type: UI/Standardization
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.12`.
+- Pushed current GPM dropdown contract into workspace standards:
+  - updated `E:\Dev\Rules\standards\Workspace_Design_Standard.md` with canonical fallback/reset/icon semantics
+  - updated `E:\Dev\Rules\standards\workspace-design-base.css` with canonical dropdown class contract (`smart-dropdown*`, `dropdown-*`).
+- Pulled the same dropdown contract across other GPM dropdown filter areas (Workflow/Scripts):
+  - default trigger labels now use filter names (`Group`, `Platform`)
+  - filter reset option remains `All`
+  - added `platform` tone + icon mapping and matching style tokens for trigger/options.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - All Option Icon Update 0.2.11
+
+- Version: `0.2.11`
+- Timestamp: 2026-05-01 20:23 (UTC+7)
+- Commit: pending
+- Type: UI/Consistency
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.11`.
+- Replaced the dropdown reset option icon (`All`) from filter-style icon to a global-style icon for clearer semantics and to avoid confusion with filter controls.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - Dropdown Reset Option Label to All 0.2.10
+
+- Version: `0.2.10`
+- Timestamp: 2026-05-01 20:21 (UTC+7)
+- Commit: pending
+- Type: UI/Consistency
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.10`.
+- Updated shared dropdown reset option label from context name (`Status`/`Group`) to a neutral `All`.
+- Kept the visual `all` marker icon in the reset option for clear "all options" semantics.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - Status Dropdown Default Label Sync 0.2.9
+
+- Version: `0.2.9`
+- Timestamp: 2026-05-01 20:18 (UTC+7)
+- Commit: pending
+- Type: UI/Consistency
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.9`.
+- Updated status filter dropdown default display to match table column naming:
+  - trigger fallback label changed from `All statuses` to `Status`
+  - default icon tone changed from generic `all` to `status`.
+- Added `status` tone support for dropdown trigger and option marker styling to keep visual parity with status semantics.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - Status Icon Sync + Group Dropdown Default 0.2.8
+
+- Version: `0.2.8`
+- Timestamp: 2026-05-01 20:10 (UTC+7)
+- Commit: pending
+- Type: UI/Consistency
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.8`.
+- Synced Profile table status cell visuals with the status dropdown icon set:
+  - `Ready` -> check-circle icon
+  - `Opening` -> refresh icon
+  - `Running` -> play icon
+  - `Failed` -> x-circle icon
+- Removed old status-dot pseudo marker in table rows and aligned status color mapping to the dropdown semantics.
+- Updated Group dropdown default trigger label to match table naming (`Group`) and show the group icon in the trigger/menu default state.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - YTB Dropdown Parity for Profile Filters 0.2.7
+
+- Version: `0.2.7`
+- Timestamp: 2026-05-01 20:06 (UTC+7)
+- Commit: pending
+- Type: Feature/UI
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.7`.
+- Standardized Profiles filter dropdown behavior to match YTB `SmartFilterDropdown` contract:
+  - trigger label wrapper + status tone markers
+  - chevron placement and open-state rotation
+  - adaptive menu sizing and compact search field behavior
+  - option marker icons and selected check icon rendering
+  - rounded selected checkbox style and normalized option density.
+- Kept GPM dropdown typography unchanged as requested (font family/size/weight behavior retained).
+- Updated workspace standards to lock dropdown parity requirements:
+  - `Workspace_Design_Standard.md` now includes shared dropdown contract and parity checklist item
+  - `workspace-design-base.css` updated filter-row alias to three columns for table search + two dropdown filters.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
+## 2026-05-01 - Profile Filter + Dropdown Standardization 0.2.6
+
+- Version: `0.2.6`
+- Timestamp: 2026-05-01 19:58 (UTC+7)
+- Commit: pending
+- Type: Feature/UI
+- Status: Verified
+
+### Changes
+
+- Bumped release version to `0.2.6`.
+- Added status filtering for the Profiles table (`Ready`, `Opening`, `Running`, `Failed`) with multi-select support.
+- Updated profile filter behavior to include status in the paging reset trigger and filtering pipeline.
+- Standardized GPM dropdown styling to match workspace standards:
+  - compact trigger/input height (`32px`)
+  - adaptive menu width (`max(100%, 180px)`, capped at `240px`)
+  - open-state chevron rotation.
+- Updated profile filter header layout to three columns (`search + group + status`) following the standardized filter-row pattern.
+
+### Verification
+
+```powershell
+pnpm build
+```
+
+Result: passed.
+
 ## 2026-04-30 - Release Log Parsing Logic Update 0.2.5
 
 - Version: `0.2.5`

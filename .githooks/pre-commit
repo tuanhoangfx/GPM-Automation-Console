@@ -2,7 +2,7 @@
 set -e
 
 echo "[hook] release stamp"
-pnpm release:code-only-stamp
+pnpm release:stamp
 
 git add package.json tool.manifest.json RELEASE.md
 
