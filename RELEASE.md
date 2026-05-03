@@ -4,6 +4,29 @@ Release and update process for `GPM Automation Console`.
 
 The desktop app is packaged with Electron Builder as a Windows NSIS web installer. Public GitHub Releases are used as the install payload host and update feed for `electron-updater`.
 
+## 2026-05-03 - Workflow Execution Logic Update
+
+- Version: `0.2.23`
+- Timestamp: 2026-05-03 19:44 (UTC+7)
+- Commit: `ad9d754`
+- Type: Feature/Fix
+- Status: Verified
+
+### Changes
+
+- Feature areas touched: Workflow (6), App Core (1), UI (1).
+- Restored theme and overlay infrastructure so popovers and dialogs render reliably with correct dark/light styling.
+
+### Verification
+
+```powershell
+pnpm sync:all
+pnpm build
+```
+
+Result: passed.
+
+
 ## 2026-05-03 - Desktop Runtime Update
 
 - Version: `0.2.22`

@@ -1,6 +1,6 @@
 {
   "name": "gpm-automation-console",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "private": true,
   "description": "Desktop console for managing and automating GPM Login profiles.",
   "author": "GPM Automation Console",
@@ -46,6 +46,8 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
+    "@xyflow/react": "^12.10.2",
+    "@xyflow/system": "0.0.76",
     "concurrently": "^9.2.1",
     "electron-updater": "^6.8.3",
     "lucide-react": "^0.561.0",

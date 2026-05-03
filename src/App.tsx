@@ -71,6 +71,7 @@ import {
 import { useProfiles, type ProfileSortDirection } from "./features/profiles/useProfiles";
 import { profileId, profileName, syncProfileRowState } from "./features/profiles/profile-utils";
 import { parseVersionLogEntries, type ParsedVersionLogEntry } from "./features/release-log/parseVersionLogEntries";
+import { WorkflowScriptFlow } from "./features/workflows/WorkflowScriptFlow";
 import { executeWorkflowAction, type WorkflowExecutorAction } from "./features/workflows/workflow-executors";
 import { useWorkflows } from "./features/workflows/useWorkflows";
 import { GPM_CONSOLE_THEME_KEY, readStoredThemeMode, syncDocumentTheme } from "./theme";
@@ -120,8 +121,39 @@ type DropdownOption = {
 
 const WORKFLOWS_KEY = "gpm-console-workflows";
 const ACTIVE_WORKFLOW_KEY = "gpm-console-active-workflow";
+/** Built-in workflows removed by version (no longer shipped; purge from persisted state). */
+const PURGED_BUILTIN_WORKFLOW_IDS = new Set<string>(["screen-resolution-real"]);
+
 const PAGE_SIZE_OPTIONS = [100, 500, 1000, 5000];
 const SCRIPT_STEP_KINDS: ScriptStepKind[] = ["navigate", "wait", "click", "type", "delay", "scroll", "screenshot", "condition", "action"];
+
+type ScriptStepCategoryKey = "page" | "interact" | "capture" | "logic";
+
+function scriptStepCategoryLabel(cat: ScriptStepCategoryKey): string {
+  switch (cat) {
+    case "page":
+      return "Page & wait";
+    case "interact":
+      return "Interact";
+    case "capture":
+      return "Capture";
+    case "logic":
+      return "Logic";
+    default:
+      return "";
+  }
+}
+
+/** Step types offered in Workflow Steps header, grouped by category. */
+const SCRIPT_STEP_HEADER_GROUPS: {
+  cat: ScriptStepCategoryKey;
+  kinds: ScriptStepKind[];
+}[] = [
+  { cat: "page", kinds: ["navigate", "wait"] },
+  { cat: "interact", kinds: ["click", "type", "delay", "scroll"] },
+  { cat: "capture", kinds: ["screenshot"] },
+  { cat: "logic", kinds: ["condition", "action"] }
+];
 
 function createStep(kind: ScriptStepKind, patch: Partial<ScriptStep> = {}): ScriptStep {
   const defaults: Record<ScriptStepKind, Pick<ScriptStep, "name" | "timeoutMs">> = {
@@ -152,6 +184,26 @@ function workflowSteps(targetUrl: string, screenshot = true): ScriptStep[] {
     createStep("wait", { name: "Wait for page idle", timeoutMs: 15000 }),
     ...(screenshot ? [createStep("screenshot", { name: "Capture evidence" })] : [])
   ];
+}
+
+/** Step `value` slugs dropped from product — stripped on load/import/duplicate */
+const OBSOLETE_SCRIPT_STEP_VALUES = new Set<string>(["set-screen-resolution-real"]);
+
+function stripObsoleteScriptSteps(steps: ScriptStep[]): ScriptStep[] {
+  return steps.filter((step) => !OBSOLETE_SCRIPT_STEP_VALUES.has(String(step.value ?? "").trim()));
+}
+
+/** Drop deprecated steps, remap ids & timeouts; refill from preset if nothing left */
+function hydrateWorkflowSteps(raw: ScriptStep[], preset: ScriptStep[], fallbackUrl: string): ScriptStep[] {
+  let base = stripObsoleteScriptSteps(raw);
+  if (!base.length) base = stripObsoleteScriptSteps(preset);
+  if (!base.length) base = workflowSteps(fallbackUrl || "https://example.com", false);
+  return base.map((step) => ({
+    ...step,
+    id: step.id || crypto.randomUUID(),
+    enabled: Boolean(step.enabled ?? true),
+    timeoutMs: clampTimeout(Number(step.timeoutMs ?? 10000))
+  }));
 }
 
 const DEFAULT_WORKFLOWS: WorkflowConfig[] = [
@@ -229,21 +281,6 @@ const DEFAULT_WORKFLOWS: WorkflowConfig[] = [
     inspectMode: false,
     concurrency: 2,
     steps: workflowSteps("https://one.google.com/u/0/ai/activity", true)
-  },
-  {
-    id: "screen-resolution-real",
-    name: "Set Screen Resolution Real",
-    description: "Update profile hardware setting so screen resolution is Real.",
-    icon: "shield",
-    group: "Core",
-    platform: "GPM",
-    action: "set-screen-resolution-real",
-    targetUrl: "",
-    takeScreenshot: false,
-    closeWhenDone: false,
-    inspectMode: false,
-    concurrency: 5,
-    steps: [createStep("action", { name: "Set screen resolution Real", value: "set-screen-resolution-real", timeoutMs: 15000 })]
   },
   {
     id: "ag-appeal-form",
@@ -446,7 +483,7 @@ function workflowStepsForRun(workflow: WorkflowConfig, targetUrl: string) {
   const defaultWorkflow = DEFAULT_WORKFLOWS.find((item) => item.id === workflow.id);
   let synced = false;
 
-  return workflow.steps.map((step) => {
+  return stripObsoleteScriptSteps(workflow.steps).map((step) => {
     if (synced || step.kind !== "navigate") return step;
     synced = true;
 
@@ -460,14 +497,20 @@ function workflowStepsForRun(workflow: WorkflowConfig, targetUrl: string) {
 }
 
 function readStoredActiveWorkflow(): WorkflowId {
-  const stored = localStorage.getItem(ACTIVE_WORKFLOW_KEY);
-  return stored || "open-url";
+  const stored = localStorage.getItem(ACTIVE_WORKFLOW_KEY) || "open-url";
+  if (PURGED_BUILTIN_WORKFLOW_IDS.has(stored)) return "open-url";
+  return stored;
 }
 
 function readStoredWorkflows(): WorkflowConfig[] {
   try {
     const stored = JSON.parse(localStorage.getItem(WORKFLOWS_KEY) || "[]") as Partial<WorkflowConfig>[];
-    const storedCustom = stored.filter((item) => item.id && !DEFAULT_WORKFLOWS.some((workflow) => workflow.id === item.id));
+    const storedCustom = stored.filter(
+      (item) =>
+        item.id &&
+        !PURGED_BUILTIN_WORKFLOW_IDS.has(String(item.id)) &&
+        !DEFAULT_WORKFLOWS.some((workflow) => workflow.id === item.id)
+    );
     const merged = [
       ...DEFAULT_WORKFLOWS.map((workflow) => {
         const override = stored.find((item) => item.id === workflow.id);
@@ -481,20 +524,28 @@ function readStoredWorkflows(): WorkflowConfig[] {
           action: override?.action || workflow.action,
           inspectMode: Boolean(override?.inspectMode ?? workflow.inspectMode),
           concurrency: clampConcurrency(Number(override?.concurrency ?? workflow.concurrency)),
-          steps: (Array.isArray(override?.steps) && override.steps.length ? override.steps : workflow.steps).map((step) => ({
-            ...step,
-            id: step.id || crypto.randomUUID(),
-            enabled: Boolean(step.enabled ?? true),
-            timeoutMs: clampTimeout(Number(step.timeoutMs ?? 10000))
-          }))
+          steps: hydrateWorkflowSteps(
+            Array.isArray(override?.steps) && override.steps.length ? (override.steps as ScriptStep[]) : workflow.steps,
+            workflow.steps,
+            workflow.targetUrl || ""
+          )
         };
       }),
       ...storedCustom
     ];
 
-    return merged.map((workflow) => {
+    const sanitized = merged.filter(
+      (workflow) =>
+        workflow.id &&
+        String(workflow.id).length &&
+        !PURGED_BUILTIN_WORKFLOW_IDS.has(String(workflow.id)) &&
+        (workflow.action as string) !== "set-screen-resolution-real"
+    );
+
+    return sanitized.map((workflow) => {
       const fallback = DEFAULT_WORKFLOWS.find((item) => item.id === workflow.id);
-      const steps = Array.isArray(workflow.steps) && workflow.steps.length ? workflow.steps : fallback?.steps || workflowSteps(workflow.targetUrl || "", false);
+      const preset = fallback?.steps || workflowSteps(workflow.targetUrl || "", false);
+      const raw = Array.isArray(workflow.steps) && workflow.steps.length ? workflow.steps : preset;
       return {
         ...(fallback || DEFAULT_WORKFLOWS[0]),
         ...workflow,
@@ -505,12 +556,7 @@ function readStoredWorkflows(): WorkflowConfig[] {
         action: workflow.action || fallback?.action || "open-url",
         inspectMode: Boolean(workflow.inspectMode ?? fallback?.inspectMode ?? false),
         concurrency: clampConcurrency(Number(workflow.concurrency ?? fallback?.concurrency ?? 1)),
-        steps: steps.map((step) => ({
-          ...step,
-          id: step.id || crypto.randomUUID(),
-          enabled: Boolean(step.enabled ?? true),
-          timeoutMs: clampTimeout(Number(step.timeoutMs ?? 10000))
-        }))
+        steps: hydrateWorkflowSteps(raw, preset, workflow.targetUrl || "")
       };
     });
   } catch {
@@ -1045,6 +1091,20 @@ export function App() {
   }, [activeWorkflow, selectedScriptStepId, workflowConfigs]);
 
   useEffect(() => {
+    setDraftWorkflowConfigs((items) => {
+      let changed = false;
+      const next = items.map((w) => {
+        if (stripObsoleteScriptSteps(w.steps).length === w.steps.length) return w;
+        changed = true;
+        const preset =
+          DEFAULT_WORKFLOWS.find((x) => x.id === w.id)?.steps || workflowSteps(w.targetUrl || "", false);
+        return { ...w, steps: hydrateWorkflowSteps(w.steps, preset, w.targetUrl || "") };
+      });
+      return changed ? next : items;
+    });
+  }, []);
+
+  useEffect(() => {
     function closeHistoryPopover(event: KeyboardEvent) {
       if (event.key === "Escape") {
         clearHistoryHoverTimer();
@@ -1312,6 +1372,26 @@ export function App() {
     );
   }
 
+  function reorderScriptStepsBySortedIds(sortedIds: string[]) {
+    updateWorkflowConfigsWithHistory((items) =>
+      items.map((workflow) => {
+        if (workflow.id !== activeWorkflow) return workflow;
+        if (sortedIds.length !== workflow.steps.length) return workflow;
+        const byId = new Map(workflow.steps.map((s) => [s.id, s]));
+        const next: ScriptStep[] = [];
+        const seen = new Set<string>();
+        for (const id of sortedIds) {
+          const s = byId.get(id);
+          if (!s) return workflow;
+          if (seen.has(id)) return workflow;
+          seen.add(id);
+          next.push(s);
+        }
+        return { ...workflow, steps: next };
+      })
+    );
+  }
+
   function createWorkflowDraft(source?: WorkflowConfig): WorkflowConfig {
     const id = `workflow-${Date.now()}`;
     if (!source) {
@@ -1340,7 +1420,11 @@ export function App() {
       description: source.description,
       action: "open-url",
       targetUrl: source?.targetUrl || "https://example.com",
-      steps: (source?.steps || workflowSteps("https://example.com", true)).map((step) => ({
+      steps: hydrateWorkflowSteps(
+        source?.steps || workflowSteps(source?.targetUrl || "https://example.com", true),
+        workflowSteps(source?.targetUrl || "https://example.com", true),
+        source?.targetUrl || "https://example.com"
+      ).map((step) => ({
         ...step,
         id: crypto.randomUUID()
       }))
@@ -1463,15 +1547,17 @@ export function App() {
     try {
       const data = JSON.parse(await file.text()) as WorkflowConfig;
       if (!data || Array.isArray(data) || typeof data !== "object") throw new Error("Workflow JSON must be a single workflow object.");
+      const url = data.targetUrl || "https://example.com";
+      const preset = workflowSteps(url, true);
       const imported = {
         ...data,
         id: pendingWorkflowImportId,
         icon: data.icon || "play",
         group: data.group || "Core",
         platform: data.platform || "Generic",
-        action: data.action || "open-url",
+        action: (data.action as string) === "set-screen-resolution-real" ? "open-url" : data.action || "open-url",
         concurrency: clampConcurrency(Number(data.concurrency || 1)),
-        steps: Array.isArray(data.steps) && data.steps.length ? data.steps.map((step) => ({ ...step, id: step.id || crypto.randomUUID(), enabled: Boolean(step.enabled ?? true) })) : workflowSteps(data.targetUrl || "https://example.com", true)
+        steps: hydrateWorkflowSteps(Array.isArray(data.steps) && data.steps.length ? (data.steps as ScriptStep[]) : [], preset, url)
       };
       setDraftWorkflowConfigs((items) => items.map((workflow) => (workflow.id === pendingWorkflowImportId ? imported : workflow)));
       setActiveWorkflow(pendingWorkflowImportId);
@@ -1490,16 +1576,24 @@ export function App() {
     try {
       const data = JSON.parse(await file.text()) as WorkflowConfig[];
       if (!Array.isArray(data) || data.length === 0) throw new Error("Workflow JSON must be an array.");
-      const imported = data.map((workflow) => ({
-        ...workflow,
-        id: workflow.id || `workflow-${crypto.randomUUID()}`,
-        icon: workflow.icon || "play",
-        group: workflow.group || "Core",
-        platform: workflow.platform || "Generic",
-        action: workflow.action || "open-url",
-        concurrency: clampConcurrency(Number(workflow.concurrency || 1)),
-        steps: Array.isArray(workflow.steps) && workflow.steps.length ? workflow.steps.map((step) => ({ ...step, id: step.id || crypto.randomUUID(), enabled: Boolean(step.enabled ?? true) })) : workflowSteps(workflow.targetUrl || "https://example.com", true)
-      }));
+      const imported = data.map((workflow) => {
+        const url = workflow.targetUrl || "https://example.com";
+        const preset = workflowSteps(url, true);
+        return {
+          ...workflow,
+          id: workflow.id || `workflow-${crypto.randomUUID()}`,
+          icon: workflow.icon || "play",
+          group: workflow.group || "Core",
+          platform: workflow.platform || "Generic",
+          action: (workflow.action as string) === "set-screen-resolution-real" ? "open-url" : workflow.action || "open-url",
+          concurrency: clampConcurrency(Number(workflow.concurrency || 1)),
+          steps: hydrateWorkflowSteps(
+            Array.isArray(workflow.steps) && workflow.steps.length ? (workflow.steps as ScriptStep[]) : [],
+            preset,
+            url
+          )
+        };
+      });
       setDraftWorkflowConfigs(imported);
       setActiveWorkflow(imported[0].id);
       setSelectedWorkflowIds([imported[0].id]);
@@ -1674,20 +1768,17 @@ export function App() {
 
     try {
       for (const workflow of runWorkflowConfigs) {
-        const requiresUrl = workflow.action !== "set-screen-resolution-real";
-        const url = requiresUrl ? normalizeUrl(workflow.targetUrl) : undefined;
-        if (requiresUrl) {
-          if (!url) {
-            addLog("error", workflow.name, "Automation URL is empty.");
-            continue;
-          }
+        const url = normalizeUrl(workflow.targetUrl);
+        if (!url) {
+          addLog("error", workflow.name, "Automation URL is empty.");
+          continue;
+        }
 
-          try {
-            new URL(url);
-          } catch {
-            addLog("error", workflow.name, "Automation URL is invalid.");
-            continue;
-          }
+        try {
+          new URL(url);
+        } catch {
+          addLog("error", workflow.name, "Automation URL is invalid.");
+          continue;
         }
 
         addLog("info", workflow.name, `Workflow queue started for ${selectedProfiles.length} profiles`);
@@ -2154,9 +2245,7 @@ export function App() {
                   disabled={
                     !selectedProfiles.length ||
                     automationRunning ||
-                    !runWorkflowConfigs.some(
-                      (workflow) => workflow.action === "set-screen-resolution-real" || workflow.targetUrl.trim()
-                    )
+                    !runWorkflowConfigs.some((workflow) => workflow.targetUrl.trim())
                   }
                 >
                   <ActiveWorkflowIcon size={16} />
@@ -2362,12 +2451,6 @@ export function App() {
                               Platform
                             </span>
                           </th>
-                          <th>
-                            <span className="table-col-head table-col-wf-url">
-                              <Globe2 size={13} />
-                              URL
-                            </span>
-                          </th>
                           <th className="action-col">
                             <span className="table-col-head table-col-actions">
                               <Settings size={13} />
@@ -2422,9 +2505,6 @@ export function App() {
                                   </span>
                                   <span>{displayPlatform}</span>
                                 </span>
-                              </td>
-                              <td className="note-cell queue-message workflow-row-url-cell">
-                                <span className="workflow-row-url">{workflow.targetUrl || "-"}</span>
                               </td>
                               <td className="row-actions queue-actions workflow-script-actions">
                                 <button
@@ -2494,7 +2574,7 @@ export function App() {
                         })}
                         {filteredWorkflows.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="empty">
+                            <td colSpan={4} className="empty">
                               No workflows match the current filters.
                             </td>
                           </tr>
@@ -2558,116 +2638,153 @@ export function App() {
               </div>
             </aside>
 
-            <section className="script-main">
-              <div className="script-header">
-                <div>
-                  <h2>{activeWorkflowConfig.name}</h2>
-                  <p>{activeWorkflowConfig.description}</p>
-                </div>
-              </div>
-
-              <div className="script-step-toolbar">
-                {SCRIPT_STEP_KINDS.map((kind) => (
-                  <button type="button" className="ghost compact" key={kind} onClick={() => addScriptStep(kind)}>
-                    <Plus size={13} />
-                    {kind}
-                  </button>
-                ))}
-              </div>
-
-              <div className="script-step-list">
-                {activeWorkflowConfig.steps.map((step, index) => (
-                  <button
-                    type="button"
-                    className={selectedScriptStep?.id === step.id ? "script-step active" : "script-step"}
-                    key={step.id}
-                    onClick={() => setSelectedScriptStepId(step.id)}
-                  >
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{step.name}</strong>
-                    <em>{step.enabled ? step.kind : "disabled"}</em>
-                    <small>{step.selector || step.value || `${step.timeoutMs ?? 0}ms`}</small>
-                  </button>
-                ))}
-                {activeWorkflowConfig.steps.length === 0 && <p className="muted">Add the first step to this workflow.</p>}
-              </div>
-            </section>
-
-            <aside className="script-inspector">
-              <div className="section-title">
-                <h2>Step Inspector</h2>
-                <span>{selectedScriptStep ? selectedScriptStep.kind : "none"}</span>
-              </div>
-              {selectedScriptStep ? (
-                <>
-                  <label>Step name</label>
-                  <input value={selectedScriptStep.name} onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { name: event.target.value })} />
-                  <label>Type</label>
-                  <select
-                    value={selectedScriptStep.kind}
-                    onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { kind: event.target.value as ScriptStepKind })}
-                  >
-                    {SCRIPT_STEP_KINDS.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {kind}
-                      </option>
+            <div className="script-editor-stack">
+              <section className="script-main">
+                <div className="script-steps-intro">
+                  <div className="section-title script-steps-title-row">
+                    <h2>Workflow Steps</h2>
+                  </div>
+                  <span className="script-steps-workflow-meta muted">
+                    {workflowDisplayId(activeWorkflowConfig.id)} · {activeWorkflowConfig.name}
+                  </span>
+                  {activeWorkflowConfig.description ? <p className="muted script-workflow-summary">{activeWorkflowConfig.description}</p> : null}
+                  <div className="script-step-header-groups" role="group" aria-label="Add step by category">
+                    {SCRIPT_STEP_HEADER_GROUPS.map(({ cat, kinds }) => (
+                      <div className={`script-step-header-group script-step-header-group--${cat}`} key={cat}>
+                        <span className="script-step-header-group-label">
+                          {scriptStepCategoryLabel(cat)}
+                        </span>
+                        <div className="script-step-header-group-buttons">
+                          {kinds.map((kind) => (
+                            <button
+                              type="button"
+                              className={`ghost compact script-step-add script-step-add--${cat}`}
+                              key={kind}
+                              onClick={() => addScriptStep(kind)}
+                            >
+                              <Plus size={11} aria-hidden /> {kind}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     ))}
-                  </select>
-                  <label>Selector</label>
-                  <input
-                    value={selectedScriptStep.selector || ""}
-                    onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { selector: event.target.value })}
-                    placeholder="css=button[type=submit]"
-                  />
-                  <label>Value</label>
-                  <input
-                    value={selectedScriptStep.value || ""}
-                    onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { value: event.target.value })}
-                    placeholder="URL, text, pixels, or action id"
-                  />
-                  <label>Timeout ms</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={120000}
-                    value={selectedScriptStep.timeoutMs ?? 0}
-                    onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { timeoutMs: Number(event.target.value) })}
-                  />
-                  <label className="check-row script-enabled">
-                    <input
-                      type="checkbox"
-                      checked={selectedScriptStep.enabled}
-                      onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { enabled: event.target.checked })}
+                  </div>
+                </div>
+
+                <div className="script-step-board-wrap workflow-script-steps-area">
+                  {activeWorkflowConfig.steps.length === 0 ? (
+                    <p className="muted script-step-board-empty">Add the first step using the shortcuts above.</p>
+                  ) : (
+                    <WorkflowScriptFlow
+                      key={activeWorkflow}
+                      steps={activeWorkflowConfig.steps}
+                      selectedStepId={selectedScriptStep?.id ?? ""}
+                      onSelectStep={setSelectedScriptStepId}
+                      onReorderBySortedIds={reorderScriptStepsBySortedIds}
                     />
-                    Enabled
-                  </label>
-                  <div className="script-inspector-save-row">
-                    <button className={savePulse ? "primary inspector-save-button saved" : "primary inspector-save-button"} onClick={saveWorkflowChanges}>
-                      {savePulse ? "Saved" : "Save"}
-                    </button>
+                  )}
+                  <p className="muted script-step-board-hint">
+                    Use the Layout control (top-right) to switch between serpentine, zigzag, or straight-line placement — your choice is saved in browser storage. Step cards match the rectangular layout footprint; actions use circular orbs. Edges use outward-bent smooth paths with solid cyan strokes, a soft glow, and a traveling specular highlight along the wire (also mirrored in the mini-map with arrows between dots). Drag the canvas background (left mouse) to pan; scroll wheel to zoom; drag nodes to reorder.
+                  </p>
+                </div>
+              </section>
+
+              <aside className="script-inspector">
+                <div className="section-title">
+                  <h2>Step Inspector</h2>
+                  <span>{selectedScriptStep ? selectedScriptStep.kind : "none"}</span>
+                </div>
+                {selectedScriptStep ? (
+                  <div className="script-inspector-form">
+                    <div className="inspector-field inspector-col-1">
+                      <label htmlFor={`script-step-name-${selectedScriptStep.id}`}>Step name</label>
+                      <input
+                        id={`script-step-name-${selectedScriptStep.id}`}
+                        value={selectedScriptStep.name}
+                        onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { name: event.target.value })}
+                      />
+                    </div>
+                    <div className="inspector-field inspector-col-1">
+                      <label htmlFor={`script-step-type-${selectedScriptStep.id}`}>Type</label>
+                      <select
+                        id={`script-step-type-${selectedScriptStep.id}`}
+                        value={selectedScriptStep.kind}
+                        onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { kind: event.target.value as ScriptStepKind })}
+                      >
+                        {SCRIPT_STEP_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {kind}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="inspector-field inspector-col-1">
+                      <label htmlFor={`script-step-timeout-${selectedScriptStep.id}`}>Timeout ms</label>
+                      <input
+                        id={`script-step-timeout-${selectedScriptStep.id}`}
+                        type="number"
+                        min={0}
+                        max={120000}
+                        value={selectedScriptStep.timeoutMs ?? 0}
+                        onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { timeoutMs: Number(event.target.value) })}
+                      />
+                    </div>
+                    <div className="inspector-field inspector-col-1 inspector-field-checkbox">
+                      <label className="check-row script-enabled">
+                        <input
+                          type="checkbox"
+                          checked={selectedScriptStep.enabled}
+                          onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { enabled: event.target.checked })}
+                        />
+                        Enabled
+                      </label>
+                    </div>
+                    <div className="inspector-field inspector-col-2">
+                      <label htmlFor={`script-step-selector-${selectedScriptStep.id}`}>Selector</label>
+                      <input
+                        id={`script-step-selector-${selectedScriptStep.id}`}
+                        value={selectedScriptStep.selector || ""}
+                        onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { selector: event.target.value })}
+                        placeholder="css=button[type=submit]"
+                      />
+                    </div>
+                    <div className="inspector-field inspector-col-2">
+                      <label htmlFor={`script-step-value-${selectedScriptStep.id}`}>Value</label>
+                      <input
+                        id={`script-step-value-${selectedScriptStep.id}`}
+                        value={selectedScriptStep.value || ""}
+                        onChange={(event) => updateActiveScriptStep(selectedScriptStep.id, { value: event.target.value })}
+                        placeholder="URL, text, pixels, or action id"
+                      />
+                    </div>
+                    <div className="script-inspector-footer">
+                      <button className={savePulse ? "primary inspector-save-button saved" : "primary inspector-save-button"} onClick={saveWorkflowChanges}>
+                        {savePulse ? "Saved" : "Save"}
+                      </button>
+                      <div className="script-inspector-actions">
+                        <button className="ghost compact step-tool-button" title="Undo" onClick={undoWorkflowChange} disabled={workflowUndoStack.length === 0}>
+                          <Undo2 size={14} />
+                        </button>
+                        <button className="ghost compact step-tool-button" title="Forward" onClick={redoWorkflowChange} disabled={workflowRedoStack.length === 0}>
+                          <Redo2 size={14} />
+                        </button>
+                        <button className="ghost compact step-tool-button" title="Move up" onClick={() => moveScriptStep(selectedScriptStep.id, -1)}>
+                          <ArrowUp size={14} />
+                        </button>
+                        <button className="ghost compact step-tool-button" title="Move down" onClick={() => moveScriptStep(selectedScriptStep.id, 1)}>
+                          <ArrowDown size={14} />
+                        </button>
+                        <button className="danger compact step-tool-button" title="Delete step" onClick={() => removeScriptStep(selectedScriptStep.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="script-inspector-actions">
-                    <button className="ghost compact step-tool-button" title="Undo" onClick={undoWorkflowChange} disabled={workflowUndoStack.length === 0}>
-                      <Undo2 size={14} />
-                    </button>
-                    <button className="ghost compact step-tool-button" title="Forward" onClick={redoWorkflowChange} disabled={workflowRedoStack.length === 0}>
-                      <Redo2 size={14} />
-                    </button>
-                    <button className="ghost compact step-tool-button" title="Move up" onClick={() => moveScriptStep(selectedScriptStep.id, -1)}>
-                      <ArrowUp size={14} />
-                    </button>
-                    <button className="ghost compact step-tool-button" title="Move down" onClick={() => moveScriptStep(selectedScriptStep.id, 1)}>
-                      <ArrowDown size={14} />
-                    </button>
-                    <button className="danger compact step-tool-button" title="Delete step" onClick={() => removeScriptStep(selectedScriptStep.id)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="muted">Select a step to edit it.</p>
-              )}
-            </aside>
+                ) : (
+                  <p className="muted">Select a step to edit it.</p>
+                )}
+              </aside>
+            </div>
           </section>
         )}
 
@@ -2909,14 +3026,12 @@ export function App() {
               >
                 <option value="open-url">Open URL</option>
                 <option value="google-form-ag-appeal">Google Form AG Appeal</option>
-                <option value="set-screen-resolution-real">Set Screen Resolution Real</option>
               </select>
               <label>Target URL</label>
               <input
                 value={activeWorkflowConfig.targetUrl}
                 onChange={(event) => updateActiveWorkflowConfig({ targetUrl: event.target.value })}
                 placeholder="https://example.com"
-                disabled={activeWorkflowConfig.action === "set-screen-resolution-real"}
                 autoFocus
               />
               <div className="settings-grid">

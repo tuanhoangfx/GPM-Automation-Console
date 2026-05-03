@@ -39,7 +39,7 @@
     "url": "https://github.com/tuanhoangfx/GPM-Automation-Console"
   },
   "release": {
-    "version": "0.2.22",
+    "version": "0.2.23",
     "readiness": [
       "build",
       "docs",
