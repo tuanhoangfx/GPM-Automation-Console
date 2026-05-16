@@ -1,17 +1,17 @@
 # Changelog
 
-## 2026-05-03 - Workflow Execution Logic Update
+## 2026-05-17 - Internal Maintenance
 
-- Version: `0.2.23`
-- Timestamp: 2026-05-03 19:44 (UTC+7)
-- Commit: `ad9d754`
-- Type: Feature/Fix
+- Version: `0.2.24`
+- Timestamp: 2026-05-17 03:33 (UTC+7)
+- Commit: `99bed63`
+- Type: Maintenance/Internal
 - Status: Verified
 
 ### Changes
 
-- Restored theme and overlay infrastructure so popovers and dialogs render reliably with correct dark/light styling.
-- Workflow execution logic updates synced from the latest desktop release.
+- Feature areas touched: none (internal-only update).
+- No end-user behavior changes in this release (internal maintenance only).
 
 ### Verification
 
@@ -20,11 +20,4 @@ pnpm sync:all
 pnpm build
 ```
 
-- Result: passed
-
-### Rollback
-
-```powershell
-cd E:\Dev\Tool\GPM-Automation-Console
-git revert <commit_hash>
-```
+Result: passed.
